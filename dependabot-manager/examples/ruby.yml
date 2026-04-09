@@ -1,0 +1,12 @@
+# Ruby ecosystem
+# Drop this entry into the `updates:` block of .github/dependabot.yml
+
+  - package-ecosystem: "bundler"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "ruby"

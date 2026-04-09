@@ -1,0 +1,22 @@
+# Rust ecosystems
+# Drop these entries into the `updates:` block of .github/dependabot.yml
+
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "rust"
+
+  - package-ecosystem: "rust-toolchain"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "rust"

@@ -1,0 +1,39 @@
+# .github/workflows/zizmor.yml
+#
+# Reference workflow from the github-actions-security skill. Implements every
+# rule in SKILL.md: pull_request trigger (not pull_request_target),
+# permissions: {} at the top with minimal per-job grants, ubuntu-24.04 (not
+# ubuntu-latest), all actions pinned to full commit SHAs, no PR comments.
+#
+# Before copying this file into a target repo, look up the latest released
+# SHAs for actions/checkout and zizmorcore/zizmor-action and replace the
+# pinned values below. Both can change between when this example was authored
+# and when you use it. See SKILL.md §2 "Looking Up the Correct SHA".
+
+name: Workflow security
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+
+permissions: {}
+
+jobs:
+  zizmor:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@71321a20a9ded102f6e9ce5718a2fcec2c4f70d8 # v0.5.2
+        with:
+          advanced-security: false

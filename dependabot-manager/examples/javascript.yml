@@ -1,0 +1,22 @@
+# JavaScript / TypeScript ecosystems
+# Drop these entries into the `updates:` block of .github/dependabot.yml
+
+  - package-ecosystem: "npm"            # covers npm, pnpm, and Yarn
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "node"
+
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "javascript"

@@ -1,0 +1,12 @@
+# PHP ecosystem
+# Drop this entry into the `updates:` block of .github/dependabot.yml
+
+  - package-ecosystem: "composer"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "php"

@@ -1,0 +1,33 @@
+# Infrastructure-as-code ecosystems
+# Drop these entries into the `updates:` block of .github/dependabot.yml.
+# `opentofu` uses the terraform label because the community treats them as the same ecosystem.
+
+  - package-ecosystem: "terraform"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "terraform"
+
+  - package-ecosystem: "opentofu"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "terraform"
+
+  - package-ecosystem: "bazel"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "bazel"

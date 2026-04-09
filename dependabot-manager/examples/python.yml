@@ -1,0 +1,43 @@
+# Python ecosystems
+# Drop these entries into the `updates:` block of .github/dependabot.yml.
+# `pip` covers pip, pip-compile, pipenv, and poetry. `uv` is a separate ecosystem.
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "conda"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pre-commit"     # python label because pre-commit is a python tool
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "python"

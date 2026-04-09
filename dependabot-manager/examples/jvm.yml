@@ -1,0 +1,22 @@
+# JVM ecosystems (Java, Kotlin, Scala)
+# Drop these entries into the `updates:` block of .github/dependabot.yml
+
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "java"
+
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1
+    labels:
+      - "dependencies"
+      - "java"
