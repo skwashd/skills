@@ -277,7 +277,8 @@ publish release artifacts.
 ## 7. Add a zizmor CI Workflow
 
 **Every repository should include a workflow that runs zizmor against proposed workflow changes.**
-This catches security regressions at review time.
+This catches security regressions at review time, including `unpinned-uses`, `impostor-commit`,
+`template-injection`, and `dependabot-cooldown` (see §8).
 
 A complete reference workflow that implements every rule in this skill lives at
 [`examples/zizmor.yml`](examples/zizmor.yml). Read that file only when you actually need to
@@ -285,18 +286,77 @@ scaffold a new workflow into a target repo — it is a copy-paste artifact, not 
 Before copying, look up the current SHAs for `actions/checkout` and `zizmorcore/zizmor-action`
 using the procedure in §2; the pins recorded in the example will go stale.
 
+**Set the path trigger to `.github/**`**, not just `.github/workflows/**`. This ensures changes
+to `dependabot.yml` and the zizmor config (see §8) are also gated by the workflow:
+
+```yaml
+on:
+  pull_request:
+    paths:
+      - '.github/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/**'
+```
+
 ---
 
-## 8. Recommended Tools
+## 8. Set a Dependabot Cooldown (and align zizmor)
+
+**Configure a Dependabot `cooldown` to delay adopting brand-new releases.** Without a cooldown,
+Dependabot opens a PR the moment a release is published — giving you no time to observe whether
+the upstream was compromised (as happened with tj-actions and Ultralytics). Even a 1-day delay
+allows the community to catch most compromised or broken releases before you merge them.
+
+Add a `cooldown` block to every Dependabot ecosystem entry in `.github/dependabot.yml`:
+
+```yaml
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 1    # minimum recommended; raise semver-major-days for stricter control
+    labels:
+      - "dependencies"
+      - "actions"
+```
+
+> **Note:** `cooldown` applies to version updates only — security updates are never delayed.
+
+### Align zizmor's `dependabot-cooldown` audit
+
+zizmor's `dependabot-cooldown` audit **defaults to requiring 7 days** and flags anything lower
+as a finding. If your project deliberately uses a shorter cooldown (e.g. 1 day), configure
+zizmor to accept it via `.github/zizmor.yml` (auto-discovered by zizmor in the `.github/`
+directory, and by the `zizmorcore/zizmor-action` in CI):
+
+```yaml
+# zizmor config — https://docs.zizmor.sh/configuration/
+# Keep this value in sync with cooldown.default-days in .github/dependabot.yml.
+rules:
+  dependabot-cooldown:
+    config:
+      days: 1
+```
+
+**Keep `rules.dependabot-cooldown.config.days` equal to `cooldown.default-days`** in
+`dependabot.yml` so the policy and the check always agree. If you raise the Dependabot cooldown
+later, raise the zizmor threshold to match.
+
+---
+
+## 9. Recommended Tools
 
 | Tool | Purpose |
 |------|---------|
-| [**zizmor**](https://github.com/zizmorcore/zizmor) | Static analysis for GitHub Actions — catches `unpinned-uses`, `impostor-commit`, `template-injection`, and more. Run locally and in CI. |
+| [**zizmor**](https://github.com/zizmorcore/zizmor) | Static analysis for GitHub Actions — catches `unpinned-uses`, `impostor-commit`, `template-injection`, `dependabot-cooldown`, and more. Run locally and in CI. |
 | [**pinact**](https://github.com/suzuki-shunsuke/pinact) | Automatically converts tag/branch action references to full SHA pins. |
 
 ---
 
-## 9. Quick Review Checklist
+## 10. Quick Review Checklist
 
 When reviewing a workflow file, verify each of the following:
 
@@ -310,5 +370,7 @@ When reviewing a workflow file, verify each of the following:
 - [ ] Authentication steps appear immediately before the step that uses the credentials
 - [ ] Sensitive secrets are in deployment environments, not at repo level
 - [ ] Release jobs require manual approval and do not use caching
-- [ ] zizmor passes cleanly (no `unpinned-uses`, `impostor-commit`, or `template-injection` findings)
-- [ ] A zizmor CI workflow exists targeting `.github/workflows/**`
+- [ ] Dependabot config sets a `cooldown` (`default-days ≥ 1`) on every ecosystem entry
+- [ ] `.github/zizmor.yml` sets `rules.dependabot-cooldown.config.days` to match the Dependabot cooldown
+- [ ] zizmor passes cleanly (no `unpinned-uses`, `impostor-commit`, `template-injection`, or `dependabot-cooldown` findings)
+- [ ] A zizmor CI workflow exists with path trigger `.github/**`
