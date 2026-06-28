@@ -1,7 +1,7 @@
 ---
 name: pypi-version-lookup
 description: Query the PyPI JSON API to look up the latest stable version of any Python package. Use this skill whenever you need to check a package's current version, for example when writing or updating requirements.txt, pyproject.toml, setup.cfg, Dockerfiles, CI configs, or any dependency specification. Also trigger when the user asks "what's the latest version of X", "is there a newer version of X", or when pinning, bumping, or updating Python dependencies.
-allowed-tools: Bash(curl *) Bash(jq *) Bash(python3 *)
+allowed-tools: Bash(curl *) Bash(jq *) Bash(python3 *) Bash(uv run *)
 ---
 
 # PyPI Version Lookup
@@ -22,6 +22,27 @@ If `jq` is unavailable in the target environment, fall back to a Python one-line
 curl -sf --max-time 5 "https://pypi.org/pypi/requests/json" \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["info"]["version"])'
 ```
+
+### Robust batch lookup (recommended for multiple packages)
+
+When checking several packages at once — or when `jq` chokes on PyPI
+descriptions containing raw control characters, or when the system `python3`
+is broken/missing — use the bundled [`check_versions.py`](check_versions.py).
+It runs via `uv run --script` (PEP 723 inline metadata), so `uv` provisions a
+valid, self-contained Python environment regardless of the host interpreter,
+and it depends only on the standard library:
+
+```bash
+uv run --script check_versions.py fastapi torch transformers ruff
+# fastapi: latest=0.136.3 yanked=False age=331h requires_python=>=3.10
+# ...
+```
+
+It reports the latest version, yanked status, release age (for the 24h
+cooldown check below), and `requires_python` for each package in one pass.
+It parses responses with `json.loads(..., strict=False)` so the control-character
+issue that breaks `jq` does not abort the lookup, and uses timezone-aware
+UTC datetimes (`datetime.now(datetime.UTC)`) to compute age.
 
 ## How it works
 
