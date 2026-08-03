@@ -1,0 +1,190 @@
+{
+  "skill_name": "github-actions-security",
+  "evals": [
+    {
+      "id": 1,
+      "name": "pwn-request-workflow-review",
+      "prompt": "Here's our PR check workflow — can you take a look at it from a security angle?",
+      "expected_output": "A review that leads with the pull_request_target + fork-head checkout combination as the critical finding (a pwn request), and also covers the unpinned actions, ubuntu-latest, missing permissions, missing persist-credentials, early AWS authentication, and the PR-commenting step. Should propose pull_request plus a job summary as the replacement for the comment.",
+      "files": ["inputs/vulnerable-workflow/pr-check.yml"],
+      "assertions": [
+        {
+          "name": "flags pull_request_target as critical",
+          "description": "Identifies the `pull_request_target` trigger as the most serious issue, not a stylistic one, and recommends `pull_request`."
+        },
+        {
+          "name": "identifies the pwn request specifically",
+          "description": "Connects the trigger to the checkout of `github.event.pull_request.head.sha` / `head.repo.full_name` and explains that this executes fork-controlled code with the base repo's token and secrets. Naming it a 'pwn request' is a bonus, not required; recognising the combination is."
+        },
+        {
+          "name": "notes modern checkout would block this",
+          "description": "Mentions that `actions/checkout` v7 (and the July 2026 backports) refuse this by default, while making clear that upgrading is not a licence to keep the trigger."
+        },
+        {
+          "name": "flags unpinned actions",
+          "description": "Flags `actions/checkout@v4`, `aws-actions/configure-aws-credentials@v4` and `actions/github-script@v7` as mutable tag references requiring full 40-char SHA pins."
+        },
+        {
+          "name": "does not fabricate SHAs",
+          "description": "If replacement pins are offered, they are either looked up with `gh`/`git ls-remote` or clearly marked as placeholders to be resolved. Inventing a plausible-looking 40-char hex string is a hard failure."
+        },
+        {
+          "name": "flags ubuntu-latest",
+          "description": "Flags `runs-on: ubuntu-latest` and recommends `ubuntu-24.04`."
+        },
+        {
+          "name": "flags missing permissions",
+          "description": "Notes the absence of `permissions: {}` at workflow level and per-job least-privilege grants."
+        },
+        {
+          "name": "flags missing persist-credentials",
+          "description": "Notes that the checkout step does not set `persist-credentials: false`."
+        },
+        {
+          "name": "flags early authentication",
+          "description": "Notes that the AWS credential step runs before `npm ci`, lint and test, leaving three unrelated steps inside the credential blast radius, and recommends moving it immediately before the `aws s3 cp` step."
+        },
+        {
+          "name": "flags the PR comment step",
+          "description": "Flags the `github-script` commenting step and recommends a job summary via $GITHUB_STEP_SUMMARY instead."
+        },
+        {
+          "name": "notes template injection risk",
+          "description": "Bonus: notes that interpolating `github.event.pull_request.title` into the script body is a template-injection vector."
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "stale-checkout-pin",
+      "prompt": "This workflow already follows our hardening rules — pinned, minimal permissions, no dangerous triggers. Anything left to do?",
+      "expected_output": "Recognition that the workflow is structurally sound, plus the finding that the actions/checkout pin (v6.0.2, de0fac2e) predates the July 2026 pwn-request protections, and that SHA pinning means this fix does not arrive on its own. Should also note the dependabot.yml has no cooldown.",
+      "files": ["inputs/stale-pins/ci.yml", "inputs/stale-pins/dependabot.yml"],
+      "assertions": [
+        {
+          "name": "identifies the stale checkout pin",
+          "description": "Recognises that `de0fac2e4500dabe0009e67214ff5f5447ce83dd` / v6.0.2 predates the July 2026 backports and therefore lacks the pwn-request block. This is the entire point of the eval."
+        },
+        {
+          "name": "explains the pinning trade-off",
+          "description": "Makes the point that hash pinning means upstream security fixes do not arrive automatically, so pinning must be paired with something that drives updates."
+        },
+        {
+          "name": "recommends a current pin",
+          "description": "Recommends moving to v6.1.0 or v7.0.1 (or looking up the current release), rather than leaving it."
+        },
+        {
+          "name": "flags the missing cooldown",
+          "description": "Notes that the cargo entry in dependabot.yml has no `cooldown` block and recommends `default-days: 3` or more."
+        },
+        {
+          "name": "recommends github-actions ecosystem",
+          "description": "Notes that dependabot.yml has no `github-actions` entry, which is what would keep the action pins current in the first place."
+        },
+        {
+          "name": "no false positives on the good parts",
+          "description": "Does not flag the pull_request trigger, `permissions: {}`, ubuntu-24.04, or `persist-credentials: false` as problems — these are all correct."
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "hardened-release-no-false-positives",
+      "prompt": "Sanity check on our release workflow before I merge it.",
+      "expected_output": "A short review recognising the workflow follows the guidance: pinned SHAs, permissions: {} with minimal per-job grants, ubuntu-24.04, deployment environment for the publish job, OIDC via id-token, no caching. Any feedback should be minor and framed as optional — e.g. suggesting manual approval on the release environment, or artifact attestations.",
+      "files": ["inputs/hardened-workflow/release.yml"],
+      "assertions": [
+        {
+          "name": "no critical findings",
+          "description": "Produces no critical-severity findings on this workflow."
+        },
+        {
+          "name": "no false flag on pinning",
+          "description": "Does not claim the actions are unpinned — all three `uses:` lines carry full 40-char SHAs with version comments."
+        },
+        {
+          "name": "no false flag on permissions",
+          "description": "Does not claim permissions are missing or excessive; `permissions: {}` is set at workflow level with minimal per-job grants."
+        },
+        {
+          "name": "no false flag on the environment",
+          "description": "Does not claim secrets are at repo level; the publish job uses `environment: release`."
+        },
+        {
+          "name": "recognises trusted publishing",
+          "description": "Recognises `id-token: write` plus gh-action-pypi-publish as OIDC trusted publishing rather than flagging it as an over-broad permission."
+        },
+        {
+          "name": "suggestions are optional and correct",
+          "description": "Any suggestions raised (manual approval on the release environment, artifact attestations, no caching in release jobs) are framed as optional improvements and are consistent with the skill's guidance."
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "scaffold-zizmor-workflow",
+      "prompt": "Can you add a zizmor workflow to this repo so we catch this stuff at review time?",
+      "expected_output": "A .github/workflows/ file with a pull_request + push trigger scoped to `.github/**`, permissions: {} at the top, contents: read on the job, ubuntu-24.04, and SHA-pinned actions/checkout and zizmorcore/zizmor-action looked up rather than guessed.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "path trigger is .github/**",
+          "description": "The `paths:` filter is `.github/**`, not `.github/workflows/**`, so changes to dependabot.yml and zizmor.yml are gated too. This is the specific inconsistency that existed between the skill text and its bundled example."
+        },
+        {
+          "name": "permissions zero at workflow level",
+          "description": "`permissions: {}` at the top of the file, with `contents: read` granted on the job."
+        },
+        {
+          "name": "pinned runner image",
+          "description": "Uses `runs-on: ubuntu-24.04`, not `ubuntu-latest`."
+        },
+        {
+          "name": "actions pinned by SHA",
+          "description": "Both actions are referenced by full 40-char commit SHA with a trailing version comment."
+        },
+        {
+          "name": "SHAs are looked up not invented",
+          "description": "Either resolves the SHAs with `gh`/`git ls-remote`, or reuses the pins from examples/zizmor.yml while telling the user to verify they are current. Fabricated hashes are a hard failure."
+        },
+        {
+          "name": "persist-credentials false",
+          "description": "The checkout step sets `persist-credentials: false`."
+        },
+        {
+          "name": "no dangerous trigger",
+          "description": "Uses `pull_request`, not `pull_request_target`."
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "cooldown-alignment",
+      "prompt": "zizmor is complaining that our Dependabot cooldown is too short. We use 3 days. How do we make it stop?",
+      "expected_output": "Explanation that zizmor's dependabot-cooldown audit defaults to 7 days, and that the fix is `rules.dependabot-cooldown.config.days: 3` in .github/zizmor.yml, kept in sync with dependabot.yml. Should note that 3 is the platform default and therefore a defensible floor, and should refuse to go below it.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "correct config path",
+          "description": "Gives the config as `rules.dependabot-cooldown.config.days` in `.github/zizmor.yml` with a top-level `rules:` key."
+        },
+        {
+          "name": "explains the 7-day default",
+          "description": "States that the audit defaults to requiring 7 days, which is why a 3-day cooldown trips it."
+        },
+        {
+          "name": "does not suggest disabling the audit",
+          "description": "Recommends configuring the threshold rather than adding the rule to a disable/ignore list."
+        },
+        {
+          "name": "holds the line at 3",
+          "description": "Does not offer to lower the threshold below 3, and explains that 3 is GitHub's own default so anything lower is weaker than having no cooldown config at all."
+        },
+        {
+          "name": "mentions keeping the two in sync",
+          "description": "Notes that the zizmor threshold and `cooldown.default-days` in dependabot.yml must be changed together."
+        }
+      ]
+    }
+  ]
+}

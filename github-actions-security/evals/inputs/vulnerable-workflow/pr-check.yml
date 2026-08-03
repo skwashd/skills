@@ -1,0 +1,36 @@
+name: PR Check
+
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-southeast-2
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+
+      - run: aws s3 cp lint-report.json s3://acme-ci-reports/
+
+      - name: Comment results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Lint passed for ${{ github.event.pull_request.title }}'
+            })

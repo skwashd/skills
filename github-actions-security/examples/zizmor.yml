@@ -3,23 +3,32 @@
 # Reference workflow from the github-actions-security skill. Implements every
 # rule in SKILL.md: pull_request trigger (not pull_request_target),
 # permissions: {} at the top with minimal per-job grants, ubuntu-24.04 (not
-# ubuntu-latest), all actions pinned to full commit SHAs, no PR comments.
+# ubuntu-latest), all actions pinned to full commit SHAs, no PR comments, and
+# a .github/** path trigger so changes to dependabot.yml and zizmor.yml are
+# gated too (SKILL.md §7).
 #
 # Before copying this file into a target repo, look up the latest released
 # SHAs for actions/checkout and zizmorcore/zizmor-action and replace the
 # pinned values below. Both can change between when this example was authored
 # and when you use it. See SKILL.md §2 "Looking Up the Correct SHA".
+#
+# Note the explicit `version:` input. SHA-pinning zizmor-action pins the
+# action, but NOT the zizmor binary it downloads — that input defaults to
+# `latest`, so an unpinned action would fetch whatever zizmor is current at
+# run time. This is the "immutability gap" described in SKILL.md §2: an
+# immutably-pinned action can still make mutable decisions at runtime. Pin
+# both, and keep the version at 1.28.0 or above (SKILL.md §7).
 
 name: Workflow security
 
 on:
   pull_request:
     paths:
-      - '.github/workflows/**'
+      - '.github/**'
   push:
     branches: [main]
     paths:
-      - '.github/workflows/**'
+      - '.github/**'
 
 permissions: {}
 
@@ -30,10 +39,11 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Run zizmor
-        uses: zizmorcore/zizmor-action@71321a20a9ded102f6e9ce5718a2fcec2c4f70d8 # v0.5.2
+        uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
         with:
+          version: "1.29.0"        # pin the tool, not just the action
           advanced-security: false
