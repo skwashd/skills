@@ -7,15 +7,18 @@
 
 plugin "aws" {
   enabled = true
-  version = "0.47.0"
+  version = "0.48.0"
   source  = "github.com/terraform-linters/tflint-ruleset-aws"
 }
 
 plugin "dave-says" {
   enabled = true
-  version = "0.3.0"
+  version = "0.4.0"
   source  = "github.com/skwashd/tflint-ruleset-dave-says"
 }
+
+# If `tflint --init` panics while verifying plugin attestations, unset
+# GITHUB_TOKEN or add `signature = "pgp"` to the affected plugin block.
 
 # ---------------------------------------------------------------------------
 # AWS ruleset opt-ins
@@ -40,7 +43,29 @@ plugin "dave-says" {
 #   retention_days = 14
 # }
 
+# dave_list_alphabetical_order is a NO-OP until you name the attributes it
+# applies to. There is no universally-correct set of lists to sort, so naming
+# an attribute here asserts that its element order is not semantically
+# significant. Uncomment and extend to suit.
+# rule "dave_list_alphabetical_order" {
+#   enabled          = true
+#   attributes       = ["actions", "resources", "subnet_ids"]
+#   case_insensitive = false
+# }
+
 # To disable individual rules, follow the same pattern:
 # rule "dave_label_min_length" {
 #   enabled = false
 # }
+
+# ---------------------------------------------------------------------------
+# Adopting this in an existing codebase
+# ---------------------------------------------------------------------------
+# Turning both rulesets on at once in a large repo will produce a long backlog.
+# Rather than disabling rules, run CI with:
+#
+#   tflint --recursive --minimum-failure-severity=error
+#
+# That reports every finding but only fails the build on errors. Tighten to
+# `warning` once the backlog is cleared, so the rules stay visible throughout
+# instead of being switched off and forgotten.
