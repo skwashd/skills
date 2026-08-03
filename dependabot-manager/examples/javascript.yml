@@ -6,7 +6,7 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
     labels:
       - "dependencies"
       - "node"
@@ -16,7 +16,17 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
+    labels:
+      - "dependencies"
+      - "javascript"
+
+  - package-ecosystem: "deno"           # Deno v2 and later
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 3
     labels:
       - "dependencies"
       - "javascript"

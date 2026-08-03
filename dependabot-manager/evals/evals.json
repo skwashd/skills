@@ -1,0 +1,214 @@
+{
+  "skill_name": "dependabot-manager",
+  "evals": [
+    {
+      "id": 1,
+      "name": "greenfield-detection",
+      "prompt": "Can you set up Dependabot for this repo?",
+      "expected_output": "A complete .github/dependabot.yml containing entries only for the ecosystems this repo actually uses — npm, uv, docker, github-actions and terraform — each with a daily schedule, cooldown.default-days of at least 3, and the correct label pair. No commented-out entries for unused ecosystems. A summary telling the user which ecosystems were detected.",
+      "files": [
+        "inputs/polyglot-repo/package.json",
+        "inputs/polyglot-repo/pyproject.toml",
+        "inputs/polyglot-repo/uv.lock",
+        "inputs/polyglot-repo/Dockerfile",
+        "inputs/polyglot-repo/main.tf",
+        "inputs/polyglot-repo/dot-github/workflows/ci.yml"
+      ],
+      "assertions": [
+        {
+          "name": "detects npm",
+          "description": "Emits a `package-ecosystem: \"npm\"` entry, on the evidence of package.json."
+        },
+        {
+          "name": "detects uv",
+          "description": "Emits a `package-ecosystem: \"uv\"` entry, on the evidence of uv.lock plus the [tool.uv] section in pyproject.toml."
+        },
+        {
+          "name": "detects docker",
+          "description": "Emits a `package-ecosystem: \"docker\"` entry, on the evidence of the Dockerfile."
+        },
+        {
+          "name": "detects github-actions",
+          "description": "Emits a `package-ecosystem: \"github-actions\"` entry with `directory: \"/\"` (not `/.github/workflows`), on the evidence of the workflow file."
+        },
+        {
+          "name": "detects terraform",
+          "description": "Emits a `package-ecosystem: \"terraform\"` entry on the evidence of main.tf. Choosing `opentofu` instead, or asking which of the two applies, is also acceptable."
+        },
+        {
+          "name": "does NOT emit unused ecosystems",
+          "description": "The generated file contains no entries — active OR commented out — for ecosystems with no evidence in the repo (cargo, gomod, bundler, composer, maven, nuget, etc.). This is the core behaviour change in v2 of the skill; a full commented-out catalogue is a failure."
+        },
+        {
+          "name": "does NOT emit a bare pip entry",
+          "description": "Given uv.lock is present and there is no requirements.txt, does not additionally emit a `pip` entry. Emitting both is acceptable only if accompanied by an explicit explanation or a question to the user."
+        },
+        {
+          "name": "cooldown at least 3 days",
+          "description": "Every entry has `cooldown.default-days` of 3 or more. A value of 1 is a failure — it is below GitHub's own platform default."
+        },
+        {
+          "name": "daily schedule",
+          "description": "Every entry uses `schedule.interval: \"daily\"`."
+        },
+        {
+          "name": "correct label pairs",
+          "description": "Each entry carries \"dependencies\" plus the correct language label from the reference table: node for npm, python for uv, docker for docker, actions for github-actions, terraform for terraform."
+        },
+        {
+          "name": "reports what was detected",
+          "description": "The response tells the user which ecosystems were detected, so they can correct a miss. Silently emitting the file is a partial failure."
+        },
+        {
+          "name": "valid YAML",
+          "description": "The output parses as valid YAML with a top-level `version: 2` and an `updates:` list."
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "update-drifted-config",
+      "prompt": "Have a look at our dependabot.yml — I think it's drifted a bit.",
+      "expected_output": "An updated config that raises the cooldowns to at least 3, switches every schedule to daily, adds the missing label pairs, removes the invalid `dotnet` ecosystem, removes the `reviewers` block, and preserves the user's extra `frontend` label. A concise change summary naming each fix, with `reviewers` called out specifically as removed-by-GitHub rather than a style preference.",
+      "files": [
+        "inputs/drifted-config/dot-github/dependabot.yml",
+        "inputs/drifted-config/package.json",
+        "inputs/drifted-config/requirements.txt",
+        "inputs/drifted-config/Dockerfile"
+      ],
+      "assertions": [
+        {
+          "name": "removes reviewers",
+          "description": "Deletes the `reviewers:` block from the npm entry, and explains that GitHub removed the option in August 2025 so it no longer does anything. Points at CODEOWNERS as the replacement. Merely preserving or ignoring `reviewers` is a failure."
+        },
+        {
+          "name": "raises cooldown from 1 to at least 3",
+          "description": "Changes the npm entry's `cooldown.default-days` from 1 to 3 or more."
+        },
+        {
+          "name": "adds missing cooldown to pip",
+          "description": "Adds a `cooldown` block with `default-days` >= 3 to the pip entry, which has none."
+        },
+        {
+          "name": "raises cooldown from 0 to at least 3",
+          "description": "Changes the docker entry's `cooldown.default-days` from 0 to 3 or more."
+        },
+        {
+          "name": "fixes weekly and monthly intervals",
+          "description": "Changes the npm entry from weekly and the pip entry from monthly to `daily`."
+        },
+        {
+          "name": "preserves the extra frontend label",
+          "description": "The npm entry keeps its user-added \"frontend\" label alongside \"dependencies\" and \"node\"."
+        },
+        {
+          "name": "adds missing labels to pip",
+          "description": "The pip entry ends up with both \"dependencies\" and \"python\" — it currently has only \"python\"."
+        },
+        {
+          "name": "adds missing labels to docker",
+          "description": "The docker entry gains \"dependencies\" and \"docker\" labels, having none."
+        },
+        {
+          "name": "removes the invalid dotnet ecosystem",
+          "description": "Identifies `dotnet` as not a valid package-ecosystem value and removes it, or corrects it to `dotnet-sdk`/`nuget` while noting there is no .NET manifest in the repo."
+        },
+        {
+          "name": "summarises every change",
+          "description": "Provides a concise list of what changed, rather than silently rewriting the file."
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "compliant-config-no-false-positives",
+      "prompt": "Quick check on this dependabot.yml before I merge — anything wrong with it?",
+      "expected_output": "Recognition that the config already exceeds the skill's requirements. Critically, the 7-day cooldown and 14-day semver-major override must be preserved, not lowered to the 3-day floor. The user's groups, ignore and assignees blocks are left alone.",
+      "files": [
+        "inputs/compliant-config/dot-github/dependabot.yml",
+        "inputs/compliant-config/package.json",
+        "inputs/compliant-config/dot-github/workflows/ci.yml"
+      ],
+      "assertions": [
+        {
+          "name": "does NOT lower the 7-day cooldown",
+          "description": "The 3-day rule is a floor, not a target. Rewriting `default-days: 7` down to 3 is a failure."
+        },
+        {
+          "name": "preserves semver-major-days",
+          "description": "The `semver-major-days: 14` override survives untouched."
+        },
+        {
+          "name": "preserves groups",
+          "description": "The user's `groups.dev-dependencies` block is not removed or rewritten."
+        },
+        {
+          "name": "preserves ignore",
+          "description": "The `ignore` entry for typescript 5.x is not removed."
+        },
+        {
+          "name": "preserves assignees",
+          "description": "The `assignees` block survives — assignees is not deprecated, unlike reviewers."
+        },
+        {
+          "name": "does not invent problems",
+          "description": "Does not manufacture findings on a compliant config. Genuinely optional observations are acceptable if clearly framed as optional."
+        },
+        {
+          "name": "does not demand more ecosystems",
+          "description": "Does not insist on adding entries for ecosystems the repo has no evidence of."
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "new-ecosystem-lookup",
+      "prompt": "We're moving a service to Deno and adding a Scala service with sbt. Can you add both to our dependabot config?",
+      "expected_output": "Correct package-ecosystem values `deno` and `sbt`, each with a daily schedule, cooldown >= 3 days, and appropriate labels. These are recent additions to Dependabot, so this tests whether the reference table is current.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "uses the deno ecosystem value",
+          "description": "Emits `package-ecosystem: \"deno\"` — not `npm`, not `javascript`, and does not claim Deno is unsupported."
+        },
+        {
+          "name": "uses the sbt ecosystem value",
+          "description": "Emits `package-ecosystem: \"sbt\"` — not `maven`, `gradle` or `scala`, and does not claim sbt is unsupported."
+        },
+        {
+          "name": "correct labels",
+          "description": "deno gets \"dependencies\" + \"javascript\"; sbt gets \"dependencies\" + \"scala\"."
+        },
+        {
+          "name": "applies the standard rules",
+          "description": "Both entries use `directory: \"/\"`, `schedule.interval: \"daily\"`, and `cooldown.default-days` >= 3."
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "cooldown-rationale",
+      "prompt": "Why does this config use a 3 day cooldown but still check daily? Doesn't the cooldown make the daily schedule pointless?",
+      "expected_output": "An explanation that the cooldown is measured per release rather than from a fixed weekly point, so on an actively-released dependency there is a sliding window of releases becoming eligible every day; daily picks each up as it clears, where weekly would batch them up to six days late. Should also note that GitHub now applies a 3-day cooldown by default even with no config, and that security updates are never delayed by cooldown.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "explains the sliding window",
+          "description": "Makes the point that the cooldown clock starts at each release, so eligibility is continuous rather than batched — this is why daily is not redundant."
+        },
+        {
+          "name": "mentions the platform default",
+          "description": "Notes that GitHub applies a 3-day cooldown by default even when `cooldown` is absent from the config, which is why 3 is the floor."
+        },
+        {
+          "name": "notes security updates are exempt",
+          "description": "States that cooldown applies to version updates only and never delays security updates."
+        },
+        {
+          "name": "does not recommend weekly",
+          "description": "Does not conclude that the user should switch to a weekly schedule."
+        }
+      ]
+    }
+  ]
+}

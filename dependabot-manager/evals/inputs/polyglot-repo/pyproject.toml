@@ -1,0 +1,11 @@
+[project]
+name = "acme-api"
+version = "1.4.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "httpx",
+]
+
+[tool.uv]
+dev-dependencies = ["pytest"]

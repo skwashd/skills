@@ -6,7 +6,7 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
     labels:
       - "dependencies"
       - "java"
@@ -16,7 +16,17 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
     labels:
       - "dependencies"
       - "java"
+
+  - package-ecosystem: "sbt"            # Scala
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 3
+    labels:
+      - "dependencies"
+      - "scala"

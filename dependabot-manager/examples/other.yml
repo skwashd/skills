@@ -6,7 +6,7 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
     labels:
       - "dependencies"
       - "elixir"
@@ -16,7 +16,7 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
     labels:
       - "dependencies"
       - "dart"
@@ -26,7 +26,7 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
     labels:
       - "dependencies"
       - "julia"
@@ -36,7 +36,7 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
     labels:
       - "dependencies"
       - "elm"
@@ -46,7 +46,7 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
     labels:
       - "dependencies"
       - "swift"
@@ -56,7 +56,7 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
     labels:
       - "dependencies"
       - "cpp"

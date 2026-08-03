@@ -7,7 +7,7 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
     labels:
       - "dependencies"
       - "terraform"
@@ -17,7 +17,7 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
     labels:
       - "dependencies"
       - "terraform"
@@ -27,7 +27,17 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
     labels:
       - "dependencies"
       - "bazel"
+
+  - package-ecosystem: "nix"            # Nix flakes — note the value is `nix`, not `nix-flakes`
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 3
+    labels:
+      - "dependencies"
+      - "nix"

@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    labels:
+      - "dependencies"
+      - "node"
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+    ignore:
+      - dependency-name: "typescript"
+        versions: ["5.x"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+    labels:
+      - "dependencies"
+      - "actions"
+    assignees:
+      - "skwashd"

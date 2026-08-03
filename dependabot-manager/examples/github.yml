@@ -6,7 +6,7 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
     labels:
       - "dependencies"
       - "actions"
@@ -16,7 +16,7 @@
     schedule:
       interval: "daily"
     cooldown:
-      default-days: 1
+      default-days: 3
     labels:
       - "dependencies"
       - "git"

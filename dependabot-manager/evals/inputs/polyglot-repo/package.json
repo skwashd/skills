@@ -1,0 +1,12 @@
+{
+  "name": "acme-web",
+  "version": "1.4.0",
+  "private": true,
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0"
+  }
+}
