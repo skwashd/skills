@@ -1,0 +1,11 @@
+# Core
+flask
+requests>=2.0
+sqlalchemy
+
+# Data
+pandas
+numpy
+
+# Dev
+pytest
