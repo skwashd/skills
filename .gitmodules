@@ -1,3 +1,6 @@
+[submodule ".external/AminBlg-SimpleEnglish"]
+	path = .external/AminBlg-SimpleEnglish
+	url = git@github.com:AminBlg/SimpleEnglish.git
 [submodule ".external/mattpocock-skills"]
 	path = .external/mattpocock-skills
 	url = git@github.com:mattpocock/skills.git
