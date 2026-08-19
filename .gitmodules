@@ -1,0 +1,3 @@
+[submodule ".external/mattpocock-skills"]
+	path = .external/mattpocock-skills
+	url = git@github.com:mattpocock/skills.git
