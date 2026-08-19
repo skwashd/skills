@@ -1,0 +1,115 @@
+{
+  "QueryLanguage": "JSONata",
+  "Comment": "Sequential Lambda pipeline. Each task handles its own recoverable errors; unknown errors are allowed to fail the execution so EventBridge alerts and operators can redrive from the failed state after fixing the bug.",
+  "StartAt": "ValidateInput",
+  "States": {
+    "ValidateInput": {
+      "Type": "Task",
+      "Comment": "Doc: https://docs.aws.amazon.com/step-functions/latest/dg/connect-lambda.html",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${ValidateInputFnArn}",
+        "Payload": "{% $states.input %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.TooManyRequestsException",
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2.0,
+          "MaxDelaySeconds": 60,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["ValidationError"],
+          "Next": "RejectInvalidInput",
+          "Output": "{% { 'input': $states.input, 'error': $states.errorOutput } %}"
+        }
+      ],
+      "TimeoutSeconds": 30,
+      "Output": "{% $states.result.Payload %}",
+      "Next": "EnrichRecord"
+    },
+
+    "EnrichRecord": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${EnrichRecordFnArn}",
+        "Payload": "{% $states.input %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.TooManyRequestsException",
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2.0,
+          "MaxDelaySeconds": 60,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "TimeoutSeconds": 60,
+      "Output": "{% $merge([$states.input, $states.result.Payload]) %}",
+      "Next": "PersistRecord"
+    },
+
+    "PersistRecord": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${PersistRecordFnArn}",
+        "Payload": "{% $states.input %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.TooManyRequestsException",
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "DynamoDB.ThrottlingException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 8,
+          "BackoffRate": 2.0,
+          "MaxDelaySeconds": 60,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["DuplicateKeyError"],
+          "Next": "AlreadyPersisted",
+          "Output": "{% { 'recordId': $states.input.id, 'note': 'duplicate, skipped' } %}"
+        }
+      ],
+      "TimeoutSeconds": 30,
+      "Output": "{% $states.result.Payload %}",
+      "End": true
+    },
+
+    "RejectInvalidInput": {
+      "Type": "Fail",
+      "Comment": "Validation rejections surface as failed executions with an identifiable Error name. EventBridge can route 'ValidationRejected' specifically.",
+      "Error": "ValidationRejected",
+      "Cause": "{% 'Input failed validation: ' & $string($states.input.error.Cause) %}"
+    },
+
+    "AlreadyPersisted": {
+      "Type": "Succeed",
+      "Comment": "Idempotent success — the record was already there."
+    }
+  }
+}

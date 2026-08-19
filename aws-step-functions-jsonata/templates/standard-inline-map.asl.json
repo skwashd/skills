@@ -1,0 +1,47 @@
+{
+  "QueryLanguage": "JSONata",
+  "Comment": "Inline Map: iterate over a bounded in-memory array (≤40 concurrent iterations, total data ≤256 KiB). For larger datasets, use the Distributed Map template instead.",
+  "StartAt": "ProcessItems",
+  "States": {
+    "ProcessItems": {
+      "Type": "Map",
+      "Items": "{% $states.input.items %}",
+      "ItemSelector": {
+        "executionName": "{% $states.context.Execution.Name %}",
+        "index": "{% $states.context.Map.Item.Index %}",
+        "value": "{% $states.context.Map.Item.Value %}"
+      },
+      "ItemProcessor": {
+        "ProcessorConfig": { "Mode": "INLINE" },
+        "StartAt": "ProcessOne",
+        "States": {
+          "ProcessOne": {
+            "Type": "Task",
+            "QueryLanguage": "JSONata",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Arguments": {
+              "FunctionName": "${ProcessOneFnArn}",
+              "Payload": "{% $states.input %}"
+            },
+            "Retry": [
+              {
+                "ErrorEquals": ["Lambda.TooManyRequestsException",
+                                "Lambda.ServiceException",
+                                "Lambda.AWSLambdaException",
+                                "Lambda.SdkClientException"],
+                "IntervalSeconds": 2, "MaxAttempts": 6, "BackoffRate": 2.0,
+                "MaxDelaySeconds": 60, "JitterStrategy": "FULL"
+              }
+            ],
+            "TimeoutSeconds": 30,
+            "Output": "{% $states.result.Payload %}",
+            "End": true
+          }
+        }
+      },
+      "MaxConcurrency": 10,
+      "Output": "{% { 'count': $count($states.result), 'results': $states.result } %}",
+      "End": true
+    }
+  }
+}

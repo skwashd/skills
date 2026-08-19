@@ -1,0 +1,67 @@
+{
+  "QueryLanguage": "JSONata",
+  "Comment": "Distributed Map: iterate over large datasets (up to 10,000 concurrent child executions). Each iteration is a separate Step Functions execution. Required: Standard parent (Express cannot host a Distributed Map). Set MaxConcurrency explicitly — default is 10,000 which can overwhelm downstream services.",
+  "StartAt": "ProcessBucket",
+  "States": {
+    "ProcessBucket": {
+      "Type": "Map",
+      "ItemReader": {
+        "Resource": "arn:aws:states:::s3:listObjectsV2",
+        "Arguments": {
+          "Bucket": "{% $states.input.sourceBucket %}",
+          "Prefix": "{% $states.input.sourcePrefix %}"
+        }
+      },
+      "ItemBatcher": {
+        "MaxItemsPerBatch": 100,
+        "BatchInput": {
+          "jobRunId": "{% $states.context.Execution.Name %}"
+        }
+      },
+      "ItemProcessor": {
+        "ProcessorConfig": {
+          "Mode": "DISTRIBUTED",
+          "ExecutionType": "EXPRESS"
+        },
+        "StartAt": "ProcessBatch",
+        "States": {
+          "ProcessBatch": {
+            "Type": "Task",
+            "QueryLanguage": "JSONata",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Arguments": {
+              "FunctionName": "${ProcessBatchFnArn}",
+              "Payload": "{% $states.input %}"
+            },
+            "Retry": [
+              {
+                "ErrorEquals": ["Lambda.TooManyRequestsException",
+                                "Lambda.ServiceException",
+                                "Lambda.AWSLambdaException",
+                                "Lambda.SdkClientException"],
+                "IntervalSeconds": 2, "MaxAttempts": 8, "BackoffRate": 2.0,
+                "MaxDelaySeconds": 60, "JitterStrategy": "FULL"
+              }
+            ],
+            "TimeoutSeconds": 120,
+            "Output": "{% $states.result.Payload %}",
+            "End": true
+          }
+        }
+      },
+      "ResultWriter": {
+        "Resource": "arn:aws:states:::s3:putObject",
+        "WriterConfig": { "OutputType": "JSONL", "Transformation": "FLATTEN" },
+        "Arguments": {
+          "Bucket": "{% $states.input.resultsBucket %}",
+          "Prefix": "{% 'runs/' & $states.context.Execution.Name %}"
+        }
+      },
+      "MaxConcurrency": 200,
+      "ToleratedFailurePercentage": 1,
+      "Label": "ProcessBucket",
+      "Output": "{% { 'processed': $states.result } %}",
+      "End": true
+    }
+  }
+}

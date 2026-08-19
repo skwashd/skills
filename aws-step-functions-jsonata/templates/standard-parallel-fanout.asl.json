@@ -1,0 +1,98 @@
+{
+  "QueryLanguage": "JSONata",
+  "Comment": "Parallel fan-out: independent branches run concurrently and results are combined. Each branch handles its own recoverable errors; unknown errors in any branch raise States.BranchFailed on the Parallel state, which is not caught so the execution fails and can be redriven.",
+  "StartAt": "FanOut",
+  "States": {
+    "FanOut": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "QueryLanguage": "JSONata",
+          "StartAt": "FetchProfile",
+          "States": {
+            "FetchProfile": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Arguments": {
+                "FunctionName": "${FetchProfileFnArn}",
+                "Payload": "{% { 'userId': $states.input.userId } %}"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.TooManyRequestsException",
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 2, "MaxAttempts": 6, "BackoffRate": 2.0,
+                  "MaxDelaySeconds": 60, "JitterStrategy": "FULL"
+                }
+              ],
+              "TimeoutSeconds": 20,
+              "Output": "{% { 'profile': $states.result.Payload } %}",
+              "End": true
+            }
+          }
+        },
+        {
+          "QueryLanguage": "JSONata",
+          "StartAt": "FetchOrders",
+          "States": {
+            "FetchOrders": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:dynamodb:query",
+              "Arguments": {
+                "TableName": "${OrdersTable}",
+                "KeyConditionExpression": "userId = :uid",
+                "ExpressionAttributeValues": {
+                  ":uid": { "S": "{% $states.input.userId %}" }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": ["DynamoDB.ThrottlingException",
+                                  "DynamoDB.ProvisionedThroughputExceededException"],
+                  "IntervalSeconds": 1, "MaxAttempts": 8, "BackoffRate": 2.0,
+                  "MaxDelaySeconds": 30, "JitterStrategy": "FULL"
+                }
+              ],
+              "TimeoutSeconds": 10,
+              "Output": "{% { 'orders': $states.result.Items } %}",
+              "End": true
+            }
+          }
+        }
+      ],
+      "Retry": [
+        {
+          "ErrorEquals": ["States.Timeout"],
+          "IntervalSeconds": 5, "MaxAttempts": 2, "BackoffRate": 2.0
+        }
+      ],
+      "TimeoutSeconds": 60,
+      "Output": "{% { 'userId': $states.input.userId, 'profile': $states.result[0].profile, 'orders': $states.result[1].orders } %}",
+      "Next": "Combine"
+    },
+
+    "Combine": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${CombineFnArn}",
+        "Payload": "{% $states.input %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.TooManyRequestsException", "Lambda.ServiceException",
+                          "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 2, "MaxAttempts": 6, "BackoffRate": 2.0,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "TimeoutSeconds": 15,
+      "Output": "{% $states.result.Payload %}",
+      "End": true
+    }
+  }
+}

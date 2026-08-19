@@ -1,0 +1,65 @@
+{
+  "QueryLanguage": "JSONata",
+  "Comment": "Wait-for-callback pattern: the workflow sends a task token to an external system (SNS here, but could be SQS/EventBridge/Lambda) and pauses until that system calls SendTaskSuccess or SendTaskFailure with the token. Used for human approvals, long-running external jobs, or callbacks from systems that can't block.",
+  "StartAt": "RequestApproval",
+  "States": {
+    "RequestApproval": {
+      "Type": "Task",
+      "Comment": "Publishes approval request to SNS topic; humans reply via the token. Doc: https://docs.aws.amazon.com/step-functions/latest/dg/connect-to-resource.html#connect-wait-token",
+      "Resource": "arn:aws:states:::sns:publish.waitForTaskToken",
+      "Arguments": {
+        "TopicArn": "${ApprovalTopicArn}",
+        "Message": {
+          "requestId": "{% $states.input.requestId %}",
+          "summary": "{% $states.input.summary %}",
+          "taskToken": "{% $states.context.Task.Token %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["SNS.SNSException", "States.Timeout"],
+          "IntervalSeconds": 5, "MaxAttempts": 3, "BackoffRate": 2.0,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["ApprovalRejected"],
+          "Next": "RecordRejection",
+          "Output": "{% $merge([$states.input, { 'rejection': $states.errorOutput }]) %}"
+        }
+      ],
+      "TimeoutSeconds": 86400,
+      "HeartbeatSeconds": 3600,
+      "Output": "{% $merge([$states.input, { 'approval': $states.result }]) %}",
+      "Next": "ActOnApproval"
+    },
+
+    "ActOnApproval": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${ActOnApprovalFnArn}",
+        "Payload": "{% $states.input %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.TooManyRequestsException", "Lambda.ServiceException",
+                          "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 2, "MaxAttempts": 6, "BackoffRate": 2.0,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "TimeoutSeconds": 60,
+      "Output": "{% $states.result.Payload %}",
+      "End": true
+    },
+
+    "RecordRejection": {
+      "Type": "Fail",
+      "Comment": "Approval was explicitly rejected — fail the execution with a distinct Error name so EventBridge can route to a rejection-specific handler.",
+      "Error": "ApprovalRejected",
+      "Cause": "{% 'Approval rejected for requestId ' & $string($states.input.requestId) & ': ' & $string($states.input.rejection.Cause) %}"
+    }
+  }
+}

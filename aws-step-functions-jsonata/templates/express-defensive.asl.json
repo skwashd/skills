@@ -1,0 +1,184 @@
+{
+  "QueryLanguage": "JSONata",
+  "Comment": "Express workflow: small (≤10 states), fully idempotent, defensively catches all error classes because there is no execution history to debug with after the fact. Unknown errors emit structured output to a sink (SNS here) rather than failing silently. Every Task is idempotent so at-least-once delivery is safe. If this workflow needs to grow beyond ~10 states, split it: Standard parent + Express children via states:startExecution.sync:2.",
+  "StartAt": "FetchContext",
+  "States": {
+    "FetchContext": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:dynamodb:getItem",
+      "Arguments": {
+        "TableName": "${ContextTable}",
+        "Key": {
+          "id": { "S": "{% $states.input.contextId %}" }
+        },
+        "ConsistentRead": true
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["DynamoDB.ThrottlingException",
+                          "DynamoDB.ProvisionedThroughputExceededException",
+                          "DynamoDB.InternalServerError"],
+          "IntervalSeconds": 1, "MaxAttempts": 5, "BackoffRate": 2.0,
+          "MaxDelaySeconds": 10, "JitterStrategy": "FULL"
+        },
+        {
+          "ErrorEquals": ["States.QueryEvaluationError"],
+          "MaxAttempts": 0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ReportFetchFailure",
+          "Output": "{% { 'stage': 'FetchContext', 'input': $states.input, 'error': $states.errorOutput } %}"
+        }
+      ],
+      "TimeoutSeconds": 5,
+      "Output": "{% $merge([$states.input, { 'context': $states.result.Item }]) %}",
+      "Next": "TransformEvent"
+    },
+
+    "TransformEvent": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${TransformFnArn}",
+        "Payload": "{% $states.input %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.TooManyRequestsException",
+                          "Lambda.ServiceException",
+                          "Lambda.AWSLambdaException",
+                          "Lambda.SdkClientException"],
+          "IntervalSeconds": 1, "MaxAttempts": 5, "BackoffRate": 2.0,
+          "JitterStrategy": "FULL"
+        },
+        {
+          "ErrorEquals": ["States.QueryEvaluationError"],
+          "MaxAttempts": 0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ReportTransformFailure",
+          "Output": "{% { 'stage': 'TransformEvent', 'input': $states.input, 'error': $states.errorOutput } %}"
+        }
+      ],
+      "TimeoutSeconds": 15,
+      "Output": "{% $states.result.Payload %}",
+      "Next": "EmitEvent"
+    },
+
+    "EmitEvent": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::events:putEvents",
+      "Arguments": {
+        "Entries": [
+          {
+            "EventBusName": "${EventBusName}",
+            "Source": "myapp.events",
+            "DetailType": "{% $states.input.type %}",
+            "Detail": "{% $string($states.input) %}"
+          }
+        ]
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["EventBridge.EventBridgeException",
+                          "EventBridge.InternalServiceException"],
+          "IntervalSeconds": 1, "MaxAttempts": 5, "BackoffRate": 2.0,
+          "JitterStrategy": "FULL"
+        },
+        {
+          "ErrorEquals": ["States.QueryEvaluationError"],
+          "MaxAttempts": 0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ReportEmitFailure",
+          "Output": "{% { 'stage': 'EmitEvent', 'input': $states.input, 'error': $states.errorOutput } %}"
+        }
+      ],
+      "TimeoutSeconds": 5,
+      "Output": "{% { 'published': true, 'count': $count($states.result.Entries) } %}",
+      "End": true
+    },
+
+    "ReportFetchFailure": {
+      "Type": "Task",
+      "Comment": "Emit structured failure details to SNS so we can see what happened. No execution history to fall back on.",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Arguments": {
+        "TopicArn": "${FailureTopicArn}",
+        "Subject": "Express workflow failure: FetchContext",
+        "Message": "{% $string($states.input) %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 1, "MaxAttempts": 3, "BackoffRate": 2.0
+        }
+      ],
+      "TimeoutSeconds": 5,
+      "Next": "FailFetch"
+    },
+
+    "ReportTransformFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Arguments": {
+        "TopicArn": "${FailureTopicArn}",
+        "Subject": "Express workflow failure: TransformEvent",
+        "Message": "{% $string($states.input) %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 1, "MaxAttempts": 3, "BackoffRate": 2.0
+        }
+      ],
+      "TimeoutSeconds": 5,
+      "Next": "FailTransform"
+    },
+
+    "ReportEmitFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Arguments": {
+        "TopicArn": "${FailureTopicArn}",
+        "Subject": "Express workflow failure: EmitEvent",
+        "Message": "{% $string($states.input) %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 1, "MaxAttempts": 3, "BackoffRate": 2.0
+        }
+      ],
+      "TimeoutSeconds": 5,
+      "Next": "FailEmit"
+    },
+
+    "FailFetch": {
+      "Type": "Fail",
+      "Error": "FetchContextFailed",
+      "Cause": "{% 'FetchContext failed: ' & $string($states.input.error.Cause) %}"
+    },
+
+    "FailTransform": {
+      "Type": "Fail",
+      "Error": "TransformEventFailed",
+      "Cause": "{% 'TransformEvent failed: ' & $string($states.input.error.Cause) %}"
+    },
+
+    "FailEmit": {
+      "Type": "Fail",
+      "Error": "EmitEventFailed",
+      "Cause": "{% 'EmitEvent failed: ' & $string($states.input.error.Cause) %}"
+    }
+  }
+}

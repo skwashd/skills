@@ -1,0 +1,485 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://anthropic.local/schemas/asl-jsonata.schema.json",
+  "title": "Amazon States Language (JSONata-only)",
+  "description": "JSON Schema for Amazon States Language state machines with QueryLanguage pinned to JSONata. Forbids every JSONPath-era field by omission via additionalProperties:false.",
+  "$ref": "#/$defs/stateMachine",
+
+  "$defs": {
+    "jsonataExpression": {
+      "type": "string",
+      "pattern": "^\\{%[\\s\\S]*%\\}$",
+      "description": "A JSONata expression, delimited by {% and %} with no surrounding whitespace."
+    },
+
+    "jsonataOrInteger": {
+      "anyOf": [
+        { "type": "integer", "minimum": 0 },
+        { "$ref": "#/$defs/jsonataExpression" }
+      ]
+    },
+
+    "jsonataOrPositiveInteger": {
+      "anyOf": [
+        { "type": "integer", "minimum": 1 },
+        { "$ref": "#/$defs/jsonataExpression" }
+      ]
+    },
+
+    "jsonataOrString": {
+      "anyOf": [
+        { "type": "string" },
+        { "$ref": "#/$defs/jsonataExpression" }
+      ]
+    },
+
+    "jsonataOrTimestamp": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+        },
+        { "$ref": "#/$defs/jsonataExpression" }
+      ]
+    },
+
+    "stateName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "State names are literal; JSONata is not allowed here."
+    },
+
+    "resourceArn": {
+      "type": "string",
+      "pattern": "^arn:(aws|aws-cn|aws-us-gov|aws-iso|aws-iso-b):[a-zA-Z0-9-]+:[a-z0-9-]*:[0-9]*:.+$",
+      "description": "ARN of a service integration, Activity, Lambda, nested state machine, or aws-sdk/http integration. Literal — no JSONata allowed."
+    },
+
+    "assignBlock": {
+      "type": "object",
+      "description": "Workflow variable assignments. Keys are identifier-like names, ≤80 chars. (ASL allows Unicode identifiers; this schema uses ASCII identifiers for regex portability — rename variables that need non-ASCII.)",
+      "propertyNames": {
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+        "maxLength": 80
+      },
+      "additionalProperties": true,
+      "minProperties": 1
+    },
+
+    "stateMachine": {
+      "type": "object",
+      "required": ["QueryLanguage", "StartAt", "States"],
+      "additionalProperties": false,
+      "properties": {
+        "QueryLanguage": {
+          "const": "JSONata",
+          "description": "This skill refuses any value other than JSONata."
+        },
+        "Comment": { "type": "string" },
+        "Version": { "type": "string" },
+        "TimeoutSeconds": { "type": "integer", "minimum": 0 },
+        "StartAt": { "$ref": "#/$defs/stateName" },
+        "States": {
+          "type": "object",
+          "minProperties": 1,
+          "patternProperties": {
+            "^.{1,128}$": { "$ref": "#/$defs/state" }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+
+    "state": {
+      "type": "object",
+      "oneOf": [
+        { "$ref": "#/$defs/taskState" },
+        { "$ref": "#/$defs/choiceState" },
+        { "$ref": "#/$defs/parallelState" },
+        { "$ref": "#/$defs/mapState" },
+        { "$ref": "#/$defs/passState" },
+        { "$ref": "#/$defs/waitState" },
+        { "$ref": "#/$defs/succeedState" },
+        { "$ref": "#/$defs/failState" }
+      ]
+    },
+
+    "taskState": {
+      "type": "object",
+      "required": ["Type", "Resource"],
+      "additionalProperties": false,
+      "properties": {
+        "Type": { "const": "Task" },
+        "Comment": { "type": "string" },
+        "QueryLanguage": { "const": "JSONata" },
+        "Resource": { "$ref": "#/$defs/resourceArn" },
+        "Arguments": {
+          "description": "Input to the service integration. May be a JSONata expression string or a (recursively evaluated) object.",
+          "oneOf": [
+            { "$ref": "#/$defs/jsonataExpression" },
+            { "type": "object" }
+          ]
+        },
+        "Output": {
+          "description": "The state's final output. Any JSON; strings matching {% %} are evaluated. Leave unconstrained."
+        },
+        "Assign": { "$ref": "#/$defs/assignBlock" },
+        "Next": { "$ref": "#/$defs/stateName" },
+        "End": { "const": true },
+        "Retry": { "$ref": "#/$defs/retryBlock" },
+        "Catch": { "$ref": "#/$defs/catchBlock" },
+        "TimeoutSeconds": { "$ref": "#/$defs/jsonataOrPositiveInteger" },
+        "HeartbeatSeconds": { "$ref": "#/$defs/jsonataOrPositiveInteger" },
+        "Credentials": {
+          "type": "object",
+          "properties": {
+            "RoleArn": { "$ref": "#/$defs/jsonataOrString" }
+          }
+        }
+      },
+      "oneOf": [
+        { "required": ["Next"], "not": { "required": ["End"] } },
+        { "required": ["End"], "not": { "required": ["Next"] } }
+      ]
+    },
+
+    "choiceState": {
+      "type": "object",
+      "required": ["Type", "Choices"],
+      "additionalProperties": false,
+      "properties": {
+        "Type": { "const": "Choice" },
+        "Comment": { "type": "string" },
+        "QueryLanguage": { "const": "JSONata" },
+        "Choices": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/choiceRule" }
+        },
+        "Default": { "$ref": "#/$defs/stateName" },
+        "Output": {},
+        "Assign": { "$ref": "#/$defs/assignBlock" }
+      }
+    },
+
+    "choiceRule": {
+      "type": "object",
+      "required": ["Condition", "Next"],
+      "additionalProperties": false,
+      "properties": {
+        "Comment": { "type": "string" },
+        "Condition": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "$ref": "#/$defs/jsonataExpression" }
+          ]
+        },
+        "Next": { "$ref": "#/$defs/stateName" },
+        "Output": {},
+        "Assign": { "$ref": "#/$defs/assignBlock" }
+      }
+    },
+
+    "parallelState": {
+      "type": "object",
+      "required": ["Type", "Branches"],
+      "additionalProperties": false,
+      "properties": {
+        "Type": { "const": "Parallel" },
+        "Comment": { "type": "string" },
+        "QueryLanguage": { "const": "JSONata" },
+        "Branches": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/stateMachine" }
+        },
+        "Arguments": {
+          "oneOf": [
+            { "$ref": "#/$defs/jsonataExpression" },
+            { "type": "object" }
+          ]
+        },
+        "Output": {},
+        "Assign": { "$ref": "#/$defs/assignBlock" },
+        "Next": { "$ref": "#/$defs/stateName" },
+        "End": { "const": true },
+        "Retry": { "$ref": "#/$defs/retryBlock" },
+        "Catch": { "$ref": "#/$defs/catchBlock" },
+        "TimeoutSeconds": { "$ref": "#/$defs/jsonataOrPositiveInteger" }
+      },
+      "oneOf": [
+        { "required": ["Next"], "not": { "required": ["End"] } },
+        { "required": ["End"], "not": { "required": ["Next"] } }
+      ]
+    },
+
+    "mapState": {
+      "type": "object",
+      "required": ["Type", "ItemProcessor"],
+      "additionalProperties": false,
+      "properties": {
+        "Type": { "const": "Map" },
+        "Comment": { "type": "string" },
+        "QueryLanguage": { "const": "JSONata" },
+        "ItemProcessor": {
+          "type": "object",
+          "required": ["StartAt", "States"],
+          "properties": {
+            "ProcessorConfig": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "Mode": { "enum": ["INLINE", "DISTRIBUTED"] },
+                "ExecutionType": { "enum": ["STANDARD", "EXPRESS"] }
+              }
+            },
+            "StartAt": { "$ref": "#/$defs/stateName" },
+            "States": {
+              "type": "object",
+              "patternProperties": {
+                "^.{1,128}$": { "$ref": "#/$defs/state" }
+              },
+              "additionalProperties": false
+            },
+            "QueryLanguage": { "const": "JSONata" }
+          }
+        },
+        "Items": {
+          "description": "Array input, or a JSONata expression that evaluates to an array. Replaces deprecated ItemsPath."
+        },
+        "ItemSelector": {
+          "description": "Projects each item before it enters ItemProcessor. Replaces deprecated Parameters.",
+          "oneOf": [
+            { "$ref": "#/$defs/jsonataExpression" },
+            { "type": "object" }
+          ]
+        },
+        "ItemReader": {
+          "type": "object",
+          "properties": {
+            "Resource": { "$ref": "#/$defs/resourceArn" },
+            "ReaderConfig": {
+              "type": "object",
+              "properties": {
+                "InputType": { "enum": ["CSV", "JSON", "JSONL", "PARQUET", "MANIFEST"] },
+                "CSVHeaderLocation": { "enum": ["FIRST_ROW", "GIVEN"] },
+                "CSVHeaders": { "type": "array", "items": { "type": "string" } },
+                "MaxItems": { "$ref": "#/$defs/jsonataOrPositiveInteger" },
+                "Transformation": { "enum": ["NONE", "LOAD_AND_FLATTEN"] }
+              }
+            },
+            "Arguments": {
+              "oneOf": [
+                { "$ref": "#/$defs/jsonataExpression" },
+                { "type": "object" }
+              ]
+            }
+          }
+        },
+        "ItemBatcher": {
+          "type": "object",
+          "properties": {
+            "MaxItemsPerBatch": { "$ref": "#/$defs/jsonataOrPositiveInteger" },
+            "MaxInputBytesPerBatch": { "$ref": "#/$defs/jsonataOrPositiveInteger" },
+            "BatchInput": { "type": "object" }
+          }
+        },
+        "ResultWriter": {
+          "type": "object",
+          "properties": {
+            "Resource": { "$ref": "#/$defs/resourceArn" },
+            "WriterConfig": {
+              "type": "object",
+              "properties": {
+                "OutputType": { "enum": ["JSON", "JSONL"] },
+                "Transformation": { "enum": ["NONE", "COMPACT", "FLATTEN"] }
+              }
+            },
+            "Arguments": {
+              "oneOf": [
+                { "$ref": "#/$defs/jsonataExpression" },
+                { "type": "object" }
+              ]
+            }
+          }
+        },
+        "MaxConcurrency": { "$ref": "#/$defs/jsonataOrPositiveInteger" },
+        "ToleratedFailureCount": { "$ref": "#/$defs/jsonataOrInteger" },
+        "ToleratedFailurePercentage": {
+          "oneOf": [
+            { "type": "number", "minimum": 0, "maximum": 100 },
+            { "$ref": "#/$defs/jsonataExpression" }
+          ]
+        },
+        "Label": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "Output": {},
+        "Assign": { "$ref": "#/$defs/assignBlock" },
+        "Next": { "$ref": "#/$defs/stateName" },
+        "End": { "const": true },
+        "Retry": { "$ref": "#/$defs/retryBlock" },
+        "Catch": { "$ref": "#/$defs/catchBlock" },
+        "TimeoutSeconds": { "$ref": "#/$defs/jsonataOrPositiveInteger" }
+      },
+      "oneOf": [
+        { "required": ["Next"], "not": { "required": ["End"] } },
+        { "required": ["End"], "not": { "required": ["Next"] } }
+      ],
+      "not": {
+        "anyOf": [
+          { "required": ["Iterator"] },
+          { "required": ["ItemsPath"] },
+          { "required": ["MaxConcurrencyPath"] },
+          { "required": ["ToleratedFailureCountPath"] },
+          { "required": ["ToleratedFailurePercentagePath"] }
+        ]
+      }
+    },
+
+    "passState": {
+      "type": "object",
+      "required": ["Type"],
+      "additionalProperties": false,
+      "properties": {
+        "Type": { "const": "Pass" },
+        "Comment": { "type": "string" },
+        "QueryLanguage": { "const": "JSONata" },
+        "Output": {},
+        "Assign": { "$ref": "#/$defs/assignBlock" },
+        "Next": { "$ref": "#/$defs/stateName" },
+        "End": { "const": true }
+      },
+      "oneOf": [
+        { "required": ["Next"], "not": { "required": ["End"] } },
+        { "required": ["End"], "not": { "required": ["Next"] } }
+      ],
+      "not": {
+        "anyOf": [
+          { "required": ["Result"] },
+          { "required": ["ResultPath"] },
+          { "required": ["InputPath"] },
+          { "required": ["OutputPath"] },
+          { "required": ["Parameters"] }
+        ]
+      }
+    },
+
+    "waitState": {
+      "type": "object",
+      "required": ["Type"],
+      "additionalProperties": false,
+      "properties": {
+        "Type": { "const": "Wait" },
+        "Comment": { "type": "string" },
+        "QueryLanguage": { "const": "JSONata" },
+        "Seconds": { "$ref": "#/$defs/jsonataOrPositiveInteger" },
+        "Timestamp": { "$ref": "#/$defs/jsonataOrTimestamp" },
+        "Output": {},
+        "Assign": { "$ref": "#/$defs/assignBlock" },
+        "Next": { "$ref": "#/$defs/stateName" },
+        "End": { "const": true }
+      },
+      "oneOf": [
+        { "required": ["Seconds"], "not": { "required": ["Timestamp"] } },
+        { "required": ["Timestamp"], "not": { "required": ["Seconds"] } }
+      ],
+      "allOf": [
+        {
+          "oneOf": [
+            { "required": ["Next"], "not": { "required": ["End"] } },
+            { "required": ["End"], "not": { "required": ["Next"] } }
+          ]
+        }
+      ],
+      "not": {
+        "anyOf": [
+          { "required": ["SecondsPath"] },
+          { "required": ["TimestampPath"] }
+        ]
+      }
+    },
+
+    "succeedState": {
+      "type": "object",
+      "required": ["Type"],
+      "additionalProperties": false,
+      "properties": {
+        "Type": { "const": "Succeed" },
+        "Comment": { "type": "string" },
+        "QueryLanguage": { "const": "JSONata" },
+        "Output": {}
+      }
+    },
+
+    "failState": {
+      "type": "object",
+      "required": ["Type"],
+      "additionalProperties": false,
+      "properties": {
+        "Type": { "const": "Fail" },
+        "Comment": { "type": "string" },
+        "QueryLanguage": { "const": "JSONata" },
+        "Error": { "$ref": "#/$defs/jsonataOrString" },
+        "Cause": { "$ref": "#/$defs/jsonataOrString" }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["ErrorPath"] },
+          { "required": ["CausePath"] }
+        ]
+      }
+    },
+
+    "retryBlock": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ErrorEquals"],
+        "additionalProperties": false,
+        "properties": {
+          "Comment": { "type": "string" },
+          "ErrorEquals": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          },
+          "IntervalSeconds": { "type": "integer", "minimum": 0 },
+          "MaxAttempts": { "type": "integer", "minimum": 0 },
+          "BackoffRate": { "type": "number", "minimum": 1.0 },
+          "MaxDelaySeconds": { "type": "integer", "minimum": 1 },
+          "JitterStrategy": { "enum": ["NONE", "FULL"] }
+        }
+      }
+    },
+
+    "catchBlock": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ErrorEquals", "Next"],
+        "additionalProperties": false,
+        "properties": {
+          "Comment": { "type": "string" },
+          "ErrorEquals": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          },
+          "Next": { "$ref": "#/$defs/stateName" },
+          "Output": {},
+          "Assign": { "$ref": "#/$defs/assignBlock" }
+        },
+        "not": {
+          "anyOf": [
+            { "required": ["ResultPath"] }
+          ]
+        }
+      }
+    }
+  }
+}

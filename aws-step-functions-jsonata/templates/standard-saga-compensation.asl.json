@@ -1,0 +1,150 @@
+{
+  "QueryLanguage": "JSONata",
+  "Comment": "Saga pattern: multi-step transaction where each step has a targeted compensating action. Each Task catches its own business failures and routes to the specific compensator that undoes the preceding work. There is deliberately NO common error handler — every catcher points to a distinct state so redrive-from-failed-state remains possible and the failure location is visible in execution history.",
+  "StartAt": "ReserveInventory",
+  "States": {
+    "ReserveInventory": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${ReserveInventoryFnArn}",
+        "Payload": "{% $states.input %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.TooManyRequestsException", "Lambda.ServiceException",
+                          "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 2, "MaxAttempts": 6, "BackoffRate": 2.0,
+          "MaxDelaySeconds": 60, "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["InventoryUnavailable"],
+          "Next": "RejectOrder",
+          "Output": "{% { 'orderId': $states.input.orderId, 'reason': 'out_of_stock' } %}"
+        }
+      ],
+      "TimeoutSeconds": 30,
+      "Assign": { "reservationId": "{% $states.result.Payload.reservationId %}" },
+      "Output": "{% $merge([$states.input, $states.result.Payload]) %}",
+      "Next": "ChargeCard"
+    },
+
+    "ChargeCard": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${ChargeCardFnArn}",
+        "Payload": "{% $states.input %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.TooManyRequestsException", "Lambda.ServiceException",
+                          "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 2, "MaxAttempts": 6, "BackoffRate": 2.0,
+          "MaxDelaySeconds": 60, "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["CardDeclined", "InsufficientFunds"],
+          "Next": "CompensateReservation",
+          "Output": "{% $merge([$states.input, { 'paymentError': $states.errorOutput }]) %}"
+        }
+      ],
+      "TimeoutSeconds": 30,
+      "Assign": { "chargeId": "{% $states.result.Payload.chargeId %}" },
+      "Output": "{% $merge([$states.input, $states.result.Payload]) %}",
+      "Next": "ShipOrder"
+    },
+
+    "ShipOrder": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${ShipOrderFnArn}",
+        "Payload": "{% $states.input %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.TooManyRequestsException", "Lambda.ServiceException",
+                          "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 2, "MaxAttempts": 6, "BackoffRate": 2.0,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["ShippingUnavailable"],
+          "Next": "CompensatePayment",
+          "Output": "{% $merge([$states.input, { 'shippingError': $states.errorOutput }]) %}"
+        }
+      ],
+      "TimeoutSeconds": 60,
+      "Output": "{% $merge([$states.input, $states.result.Payload]) %}",
+      "End": true
+    },
+
+    "RejectOrder": {
+      "Type": "Fail",
+      "Comment": "Order rejected before any state change — no compensation needed.",
+      "Error": "OrderRejected",
+      "Cause": "{% 'Order rejected: ' & $string($states.input.reason) %}"
+    },
+
+    "CompensateReservation": {
+      "Type": "Task",
+      "Comment": "Undo inventory reservation because payment failed.",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${ReleaseInventoryFnArn}",
+        "Payload": "{% { 'reservationId': $reservationId, 'reason': 'payment_failed' } %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.TooManyRequestsException", "Lambda.ServiceException",
+                          "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 2, "MaxAttempts": 8, "BackoffRate": 2.0,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "TimeoutSeconds": 30,
+      "Output": "{% $states.input %}",
+      "Next": "NotifyPaymentFailure"
+    },
+
+    "CompensatePayment": {
+      "Type": "Task",
+      "Comment": "Refund the card AND release inventory because shipping failed.",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "${RefundChargeFnArn}",
+        "Payload": "{% { 'chargeId': $chargeId, 'reservationId': $reservationId, 'reason': 'shipping_failed' } %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.TooManyRequestsException", "Lambda.ServiceException",
+                          "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 2, "MaxAttempts": 8, "BackoffRate": 2.0,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "TimeoutSeconds": 60,
+      "Output": "{% $states.input %}",
+      "Next": "NotifyShippingFailure"
+    },
+
+    "NotifyPaymentFailure": {
+      "Type": "Fail",
+      "Error": "PaymentFailed",
+      "Cause": "{% 'Payment failed and inventory was released: ' & $string($states.input.paymentError.Cause) %}"
+    },
+
+    "NotifyShippingFailure": {
+      "Type": "Fail",
+      "Error": "ShippingFailed",
+      "Cause": "{% 'Shipping failed; payment refunded and inventory released: ' & $string($states.input.shippingError.Cause) %}"
+    }
+  }
+}
