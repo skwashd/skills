@@ -10,3 +10,6 @@
 [submodule ".external/microsoft-playwright-cli"]
 	path = .external/microsoft-playwright-cli
 	url = git@github.com:microsoft/playwright-cli.git
+[submodule ".external/aws-agent-toolkit-for-aws"]
+	path = .external/aws-agent-toolkit-for-aws
+	url = git@github.com:aws/agent-toolkit-for-aws.git
