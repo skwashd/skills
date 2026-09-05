@@ -1,0 +1,103 @@
+{
+  "skill_name": "ship-story",
+  "evals": [
+    {
+      "id": 1,
+      "name": "declared-jira",
+      "prompt": "Can you pick up DAVE-123?",
+      "expected_output": "Identifies Jira as the tracker from the `Issue tracker:` line in CLAUDE.md, loads the Jira adapter, and reads the ticket via the jira-acli skill rather than treating DAVE-123 as a GitHub issue number or a Linear identifier.",
+      "files": [
+        "evals/files/declared-jira/dot-CLAUDE.md"
+      ],
+      "expectations": [
+        "Reads the CLAUDE.md declaration — the response's reasoning or actions show it read the `Issue tracker: Jira` line in CLAUDE.md before acting on the key.",
+        "Routes to Jira — the response treats DAVE-123 as a Jira work item, e.g. by calling the Skill tool with jira-acli, or by stating it will use acli, and does not attempt gh issue or linear issue commands against it.",
+        "Does not ask which tracker — since the tracker is unambiguously declared, the response does not stop to ask the user which tracker to use."
+      ]
+    },
+    {
+      "id": 2,
+      "name": "declared-linear",
+      "prompt": "implement ENG-45",
+      "expected_output": "Identifies Linear as the tracker from CLAUDE.md, loads the Linear adapter, and reads the issue via the linear CLI or the linear-cli skill.",
+      "files": [
+        "evals/files/declared-linear/dot-CLAUDE.md"
+      ],
+      "expectations": [
+        "Reads the CLAUDE.md declaration — the response's reasoning or actions show it read the `Issue tracker: Linear` line in CLAUDE.md before acting on the key.",
+        "Routes to Linear — the response treats ENG-45 as a Linear issue, e.g. `linear issue view ENG-45` or calling the Skill tool with linear-cli, and does not attempt acli or gh issue commands against it.",
+        "Does not ask which tracker — since the tracker is unambiguously declared, the response does not stop to ask the user which tracker to use."
+      ]
+    },
+    {
+      "id": 3,
+      "name": "linear-toml-only",
+      "prompt": "start ENG-88",
+      "expected_output": "With no CLAUDE.md declaration present, falls back to the repo signal — the presence of `.linear.toml` — and correctly identifies Linear as the tracker.",
+      "files": [
+        "evals/files/linear-toml-only/.linear.toml"
+      ],
+      "expectations": [
+        "Falls back to repo config — in the absence of a CLAUDE.md declaration, the response notices `.linear.toml` and uses it as the signal that this project uses Linear.",
+        "Routes to Linear — the response treats ENG-88 as a Linear issue and does not ask the user which tracker to use, since the repo signal resolves it."
+      ]
+    },
+    {
+      "id": 4,
+      "name": "ambiguous-asks-not-guesses",
+      "prompt": "let's ship ABC-12",
+      "expected_output": "With no CLAUDE.md declaration and no repo config for any tracker, the response asks the user which tracker ABC-12 belongs to rather than guessing from the key shape. It does not read, comment on, or otherwise act against any tracker before the user answers.",
+      "files": [
+        "evals/files/ambiguous/dot-CLAUDE.md"
+      ],
+      "expectations": [
+        "Asks rather than guesses — the response explicitly asks the user which tracker (Jira, Linear or GitHub Issues) ABC-12 belongs to. This is the central expectation of this eval.",
+        "Does not act on an assumed tracker — the response does not run, or describe running, a command against any specific tracker (acli, linear, or gh issue) before the user has answered which one applies.",
+        "Does not cite the key shape as evidence — the response's reasoning does not treat the ABC-12 key format itself as sufficient evidence for any particular tracker; both Jira and Linear use this shape."
+      ]
+    },
+    {
+      "id": 5,
+      "name": "gh-present-jira",
+      "prompt": "ship DAVE-77",
+      "expected_output": "CLAUDE.md declares Jira, but also discusses GitHub Actions deploys and gh usage prominently. The response still routes to Jira for the work item itself — gh's availability and its unrelated mentions in CLAUDE.md do not cause the response to treat DAVE-77 as a GitHub issue.",
+      "files": [
+        "evals/files/gh-present-jira/dot-CLAUDE.md"
+      ],
+      "expectations": [
+        "Routes to Jira despite gh mentions — the response identifies DAVE-77 as a Jira work item, on the strength of the explicit `Issue tracker: Jira` declaration, not GitHub Issues.",
+        "Does not conflate gh usage with the issue tracker — the response's reasoning distinguishes gh's role in this repo (releases, CI, deploy) from issue tracking, and does not cite gh's availability as evidence for which tracker to use.",
+        "Does not ask which tracker — since the tracker is unambiguously declared, the response does not stop to ask, despite the GitHub-heavy surrounding context."
+      ]
+    },
+    {
+      "id": 6,
+      "name": "aws-verify-uses-reference",
+      "prompt": "The PR for DAVE-201 is merged and the deploy workflow has finished. Verify it against the acceptance criteria from the ticket: submitting the contact form returns a 200, and the submission lands on the contact-intake queue.",
+      "expected_output": "CLAUDE.md's deploy section names AWS (a CloudFormation stack, a Lambda function, an SQS queue), so the response reads references/verify-aws.md before planning verification. The plan checks the queue criterion with `aws sqs get-queue-attributes`, never presents `aws sqs receive-message` as a read-only check, and names the form-submission POST as a real write made with synthetic data.",
+      "files": [
+        "evals/files/verify-aws/dot-CLAUDE.md"
+      ],
+      "expectations": [
+        "Reads the AWS verification reference — having seen the AWS deploy target in CLAUDE.md, the response reads references/verify-aws.md (or demonstrably applies its content) before or while planning the AWS verification commands.",
+        "Verifies the queue read-only — the queue criterion is checked with `aws sqs get-queue-attributes` (queue depth); the response does not present `aws sqs receive-message` as a read-only observation.",
+        "No silent receive-message — if the response proposes reading a message body at all, it passes `--visibility-timeout 0` and tells the user about the side effect. Proposing receive-message as harmless peeking fails this expectation.",
+        "Names the endpoint write — the form-submission check (a POST against the live endpoint) is identified as a mutating step: obviously-synthetic test data, and a statement that whatever it creates will go in the report."
+      ]
+    },
+    {
+      "id": 7,
+      "name": "non-aws-verify-skips-reference",
+      "prompt": "The PR for DAVE-305 is merged and the deploy workflow has finished. Verify it against the acceptance criteria from the ticket: https://reports.example.com loads over HTTPS with a 200, plain http:// requests redirect to https, and a 'report generated' line appears in the production logs when a report is requested.",
+      "expected_output": "CLAUDE.md's deploy section names Fly.io, so the response does not read references/verify-aws.md and proposes no `aws` CLI commands. Reachability and the redirect are checked with `curl -sI`, logs with the `flyctl logs -a reports-web` command CLAUDE.md provides, and requesting a report to produce the log line is named as a mutating step, not treated as observation.",
+      "files": [
+        "evals/files/verify-non-aws/dot-CLAUDE.md"
+      ],
+      "expectations": [
+        "Does not load the AWS reference — the response neither reads references/verify-aws.md nor proposes any `aws` CLI command; the project deploys to Fly.io, so the AWS reference does not apply.",
+        "Observation commands come from the project — the plan uses `curl -sI` for the reachability and redirect criteria, and the log command CLAUDE.md provides (`flyctl logs -a reports-web`) for the log criterion, rather than inventing platform commands.",
+        "Still names writes off AWS — requesting a report to make the log line appear is recognised as a mutating step, synthetic/disclosed, with anything it creates promised for the report, showing the read-only-first discipline applies beyond AWS."
+      ]
+    }
+  ]
+}

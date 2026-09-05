@@ -1,0 +1,5 @@
+[workspace]
+slug = "acme-co"
+
+[team]
+key = "ENG"
