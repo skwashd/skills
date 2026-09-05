@@ -7,3 +7,6 @@
 [submodule ".external/anthropics-skills"]
 	path = .external/anthropics-skills
 	url = git@github.com:anthropics/skills.git
+[submodule ".external/microsoft-playwright-cli"]
+	path = .external/microsoft-playwright-cli
+	url = git@github.com:microsoft/playwright-cli.git
