@@ -1,13 +1,13 @@
 # Evals for `dependabot-manager`
 
-Test cases for the `dependabot-manager` skill. Each eval is a realistic user prompt paired with input files (where applicable) and assertions describing what a good response should contain.
+Test cases for the `dependabot-manager` skill. Each eval is a realistic user prompt paired with input files (where applicable) and expectations describing what a good response should contain.
 
 ## Layout
 
 ```
 evals/
 ├── evals.json
-└── inputs/
+└── files/
     ├── polyglot-repo/      # npm + uv + docker + terraform + actions, and nothing else
     ├── drifted-config/     # existing config with every rule violated at least once
     └── compliant-config/   # already-good config with a stricter-than-required cooldown
@@ -18,7 +18,7 @@ evals/
 > were this repo's own workflow and Dependabot config, and some editors and sync tools refuse to
 > write them. When running an eval, treat `dot-github/workflows/ci.yml` as
 > `.github/workflows/ci.yml`; the skill's detection logic keys off that path, so the mapping
-> matters for eval 1's `detects github-actions` assertion.
+> matters for eval 1's `Detects github-actions` expectation.
 
 ## Test cases
 
@@ -32,7 +32,7 @@ evals/
 
 ## What each case is really guarding
 
-**Eval 1** is the regression test for the biggest behaviour change in v2 of this skill. Earlier versions emitted an entry for every ecosystem GitHub supports, commenting out the unused ones — roughly 300 lines of mostly-dead YAML in every repo. The assertion `does NOT emit unused ecosystems` fails the old behaviour deliberately.
+**Eval 1** is the regression test for the biggest behaviour change in v2 of this skill. Earlier versions emitted an entry for every ecosystem GitHub supports, commenting out the unused ones — roughly 300 lines of mostly-dead YAML in every repo. The expectation `Does NOT emit unused ecosystems` fails the old behaviour deliberately.
 
 **Eval 2** is the only case where the skill *deletes* something the user wrote. `reviewers` was removed by GitHub in August 2025, so preserving it — which the general "preserve user config" rule would otherwise imply — leaves dead configuration behind. The eval checks both that it goes and that the user is told why.
 
@@ -50,13 +50,13 @@ The [`skill-creator`](https://github.com/anthropics/claude-plugins-official/tree
 /plugin install skill-creator@claude-plugins-official
 ```
 
-Spawn one subagent per eval with the skill loaded, then a baseline subagent without it, save outputs to `iteration-1/eval-<id>/{with,without}_skill/`, and grade against the assertions in `evals.json`.
+Spawn one subagent per eval with the skill loaded, then a baseline subagent without it, save outputs to `iteration-1/eval-<id>/{with,without}_skill/`, and grade against the expectations in `evals.json`.
 
-For an informal pass, run each prompt in a fresh session with the skill in scope and check the output against the assertions by hand.
+For an informal pass, run each prompt in a fresh session with the skill in scope and check the output against the expectations by hand.
 
-## Assertion conventions
+## Expectation conventions
 
-Assertions are plain-English statements about the response. They split into:
+Expectations are plain-English statements about the response. They split into:
 
 - **Positive coverage** — "detects X", "removes Y" — the response should do a specific thing.
 - **Negative / no-false-positive** — "does NOT lower the 7-day cooldown" — the response should leave correct things alone.

@@ -7,27 +7,12 @@
       "prompt": "What's the latest version of httpx?",
       "expected_output": "A real, looked-up version number for httpx, obtained by querying the PyPI JSON API rather than recalled from memory. The command used should identify itself with a User-Agent and detect failure correctly.",
       "files": [],
-      "assertions": [
-        {
-          "name": "actually queries PyPI",
-          "description": "Runs a lookup against pypi.org rather than answering from the model's training data. Answering from memory is a hard failure — version numbers are exactly the thing that goes stale."
-        },
-        {
-          "name": "uses info.version",
-          "description": "Extracts `.info.version` from the JSON API, rather than scraping the project page or walking `.releases`."
-        },
-        {
-          "name": "sends a User-Agent",
-          "description": "The curl invocation passes `-A` with an identifying User-Agent, as PyPI's API documentation requests."
-        },
-        {
-          "name": "does not use bare -s",
-          "description": "Uses `-sS` rather than `-s` alone, so a failure would produce a diagnosable error rather than silence."
-        },
-        {
-          "name": "reports the real version",
-          "description": "The version reported matches what the API actually returned, with no rounding, guessing, or 'approximately'."
-        }
+      "expectations": [
+        "Actually queries PyPI — runs a lookup against pypi.org rather than answering from the model's training data. Answering from memory is a hard failure; version numbers are exactly the thing that goes stale.",
+        "Uses info.version — extracts `.info.version` from the JSON API, rather than scraping the project page or walking `.releases`.",
+        "Sends a User-Agent — the curl invocation passes `-A` with an identifying User-Agent, as PyPI's API documentation requests.",
+        "Does not use bare -s — uses `-sS` rather than `-s` alone, so a failure would produce a diagnosable error rather than silence.",
+        "Reports the real version — the version reported matches what the API actually returned, with no rounding, guessing, or 'approximately'."
       ]
     },
     {
@@ -36,34 +21,16 @@
       "prompt": "Can you pin everything in this requirements.txt to exact versions?",
       "expected_output": "A rewritten requirements.txt with every package pinned to an exact, looked-up version. Lookups should be batched rather than run one curl at a time, and comments in the original file should be preserved.",
       "files": [
-        "inputs/pin-requirements/requirements.txt",
-        "inputs/pin-requirements/Dockerfile"
+        "evals/files/pin-requirements/requirements.txt",
+        "evals/files/pin-requirements/Dockerfile"
       ],
-      "assertions": [
-        {
-          "name": "pins all six packages",
-          "description": "flask, requests, sqlalchemy, pandas, numpy and pytest all end up with `==` exact pins. (Six package lines; the file also has comments.)"
-        },
-        {
-          "name": "all versions are looked up",
-          "description": "Every version comes from a live PyPI query. No version is recalled from memory or extrapolated."
-        },
-        {
-          "name": "uses the batch script",
-          "description": "Uses `check_versions.py` (or a single loop) rather than six separate ad-hoc curl invocations. Bonus if it explains why — one pass, plus yanked and age data for free."
-        },
-        {
-          "name": "preserves comments and grouping",
-          "description": "The `# Core`, `# Data` and `# Dev` section comments and blank-line grouping survive in the rewritten file."
-        },
-        {
-          "name": "handles the existing constraint",
-          "description": "`requests>=2.0` becomes an exact `==` pin rather than being left as a range or producing a contradictory `requests>=2.0,==x.y.z`."
-        },
-        {
-          "name": "does not silently swallow failures",
-          "description": "If any lookup fails, it is reported rather than the package being dropped or left unpinned without comment."
-        }
+      "expectations": [
+        "Pins all six packages — flask, requests, sqlalchemy, pandas, numpy and pytest all end up with `==` exact pins. (Six package lines; the file also has comments.)",
+        "All versions are looked up — every version comes from a live PyPI query. No version is recalled from memory or extrapolated.",
+        "Uses the batch script — uses `check_versions.py` (or a single loop) rather than six separate ad-hoc curl invocations. Bonus if it explains why: one pass, plus yanked and age data for free.",
+        "Preserves comments and grouping — the `# Core`, `# Data` and `# Dev` section comments and blank-line grouping survive in the rewritten file.",
+        "Handles the existing constraint — `requests>=2.0` becomes an exact `==` pin rather than being left as a range or producing a contradictory `requests>=2.0,==x.y.z`.",
+        "Does not silently swallow failures — if any lookup fails, it is reported rather than the package being dropped or left unpinned without comment."
       ]
     },
     {
@@ -72,27 +39,12 @@
       "prompt": "I wrote this helper but it reports success for packages that don't exist. What's wrong with it?\n\n```bash\nversion=$(curl -sf --max-time 5 \"https://pypi.org/pypi/${pkg}/json\" | jq -r '.info.version')\nif [ $? -eq 0 ]; then\n  echo \"${pkg}==${version}\"\nfi\n```",
       "expected_output": "A diagnosis that `$?` after a pipeline reflects jq's exit status, not curl's: curl -f exits non-zero and writes nothing, jq reads empty input and exits 0, so the test passes with an empty version. Fix with `set -o pipefail` and/or `jq -e`.",
       "files": [],
-      "assertions": [
-        {
-          "name": "identifies the pipeline exit status issue",
-          "description": "States that `$?` reports the exit status of the last command in the pipeline (jq), not curl. This is the core diagnosis."
-        },
-        {
-          "name": "explains why jq exits 0",
-          "description": "Explains that jq reading empty input produces no output but still exits successfully, so the failure is invisible."
-        },
-        {
-          "name": "recommends pipefail",
-          "description": "Recommends `set -o pipefail` so a failing curl is no longer masked by a succeeding jq. (Pedantically the pipeline takes the rightmost non-zero status, not the first — a response that says 'first' has the right fix for the right reason and should still pass.)"
-        },
-        {
-          "name": "recommends jq -e",
-          "description": "Recommends `jq -e` (or an equivalent non-empty check) so a null or missing field is itself a non-zero exit."
-        },
-        {
-          "name": "does not just add a -n guard",
-          "description": "Testing `[ -n \"$version\" ]` masks this particular symptom but leaves the wrong pattern in place. A response that offers only that, without naming the underlying exit-status problem, is a partial failure."
-        }
+      "expectations": [
+        "Identifies the pipeline exit status issue — states that `$?` reports the exit status of the last command in the pipeline (jq), not curl. This is the core diagnosis.",
+        "Explains why jq exits 0 — explains that jq reading empty input produces no output but still exits successfully, so the failure is invisible.",
+        "Recommends pipefail — recommends `set -o pipefail` so a failing curl is no longer masked by a succeeding jq. (Pedantically the pipeline takes the rightmost non-zero status, not the first; a response that says 'first' has the right fix for the right reason and should still pass.)",
+        "Recommends jq -e — recommends `jq -e` (or an equivalent non-empty check) so a null or missing field is itself a non-zero exit.",
+        "Does not just add a -n guard — testing `[ -n \"$version\" ]` masks this particular symptom but leaves the wrong pattern in place. A response that offers only that, without naming the underlying exit-status problem, is a partial failure."
       ]
     },
     {
@@ -101,27 +53,12 @@
       "prompt": "We want to avoid pinning anything that was released in the last 24 hours. How do I check that?",
       "expected_output": "A check using upload_time_iso_8601 from the JSON API (or upload-time from the Index API), computing age against timezone-aware UTC, and refusing to pin below the threshold. Should explain why the fresh-release window matters.",
       "files": [],
-      "assertions": [
-        {
-          "name": "uses upload_time_iso_8601",
-          "description": "Uses `upload_time_iso_8601` rather than `upload_time`. Using the naive `upload_time` field is the specific bug this eval exists to catch."
-        },
-        {
-          "name": "explains the timezone hazard",
-          "description": "Notes that `upload_time` is naive — no offset — and will be misparsed as local time, shifting the computed age. Bonus for noting this is enough to slip a fresh release past a 24h check."
-        },
-        {
-          "name": "mentions the batch script flag",
-          "description": "Points at `check_versions.py --max-age-hours 24` as the ready-made way to do this, rather than only offering hand-rolled shell."
-        },
-        {
-          "name": "explains the rationale",
-          "description": "Explains why a cooldown matters — compromised maintainer accounts and bad releases are usually caught in the first day."
-        },
-        {
-          "name": "does not take urls[0] blindly",
-          "description": "If walking `.urls`, takes the minimum upload time across files rather than assuming `[0]` is meaningful, since file order is not guaranteed."
-        }
+      "expectations": [
+        "Uses upload_time_iso_8601 rather than `upload_time`. Using the naive `upload_time` field is the specific bug this eval exists to catch.",
+        "Explains the timezone hazard — notes that `upload_time` is naive, no offset, and will be misparsed as local time, shifting the computed age. Bonus for noting this is enough to slip a fresh release past a 24h check.",
+        "Mentions the batch script flag — points at `check_versions.py --max-age-hours 24` as the ready-made way to do this, rather than only offering hand-rolled shell.",
+        "Explains the rationale — explains why a cooldown matters: compromised maintainer accounts and bad releases are usually caught in the first day.",
+        "Does not take urls[0] blindly — if walking `.urls`, takes the minimum upload time across files rather than assuming `[0]` is meaningful, since file order is not guaranteed."
       ]
     },
     {
@@ -130,27 +67,12 @@
       "prompt": "Before I add a new dependency I've never used before, what should I check besides the version number?",
       "expected_output": "Should surface PEP 792 project status from the Index API — particularly `quarantined`, meaning suspected malware — alongside yanked status, and explain the precise condition under which info.version can return a yanked release.",
       "files": [],
-      "assertions": [
-        {
-          "name": "mentions project status",
-          "description": "Raises the PEP 792 `project-status` marker, available on the Index API at `/simple/<pkg>/` with the JSON Accept header."
-        },
-        {
-          "name": "identifies quarantined as the serious one",
-          "description": "States that `quarantined` means PyPI suspects malware and blocks installation, and that this is a refuse-to-pin condition."
-        },
-        {
-          "name": "correct yanked semantics",
-          "description": "If yanked status is discussed, states the actual condition: `info.version` returns a yanked release only when every release of the project is yanked, because yanked is a sort key rather than a filter. A vague 'it might return a yanked version' is a partial pass."
-        },
-        {
-          "name": "does not recommend the deprecated releases key",
-          "description": "Does not suggest walking `.releases` on the JSON API — it is deprecated and PyPI has said it may be removed. Directing to the Index API instead is the correct answer."
-        },
-        {
-          "name": "proportionate advice",
-          "description": "Frames the status check as worth doing for a new dependency rather than on every routine version bump."
-        }
+      "expectations": [
+        "Mentions project status — raises the PEP 792 `project-status` marker, available on the Index API at `/simple/<pkg>/` with the JSON Accept header.",
+        "Identifies quarantined as the serious one — states that `quarantined` means PyPI suspects malware and blocks installation, and that this is a refuse-to-pin condition.",
+        "Correct yanked semantics — if yanked status is discussed, states the actual condition: `info.version` returns a yanked release only when every release of the project is yanked, because yanked is a sort key rather than a filter. A vague 'it might return a yanked version' is a partial pass.",
+        "Does not recommend the deprecated releases key — does not suggest walking `.releases` on the JSON API; it is deprecated and PyPI has said it may be removed. Directing to the Index API instead is the correct answer.",
+        "Proportionate advice — frames the status check as worth doing for a new dependency rather than on every routine version bump."
       ]
     }
   ]

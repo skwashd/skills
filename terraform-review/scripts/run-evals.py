@@ -8,7 +8,7 @@
 """Run terraform-review skill evals against the Anthropic API.
 
 Loads evals.json, runs each eval with SKILL.md as the system prompt, then
-asks a grading model to score each assertion against the response. Writes
+asks a grading model to score each expectation against the response. Writes
 responses, grades, and a summary to a timestamped output directory.
 
 Suggested placement: scripts/run_evals.py at the same level as evals/.
@@ -56,23 +56,32 @@ from pathlib import Path
 # Eval execution
 # ---------------------------------------------------------------------------
 
-def build_user_message(eval_def: dict, evals_dir: Path) -> str:
-    """Assemble the prompt plus inline file contents into one user message."""
+def build_user_message(eval_def: dict, skill_dir: Path) -> str:
+    """Assemble the prompt plus inline file contents into one user message.
+
+    `files` entries are relative to the skill root (the official skill-creator
+    schema), and may name a directory, in which case every file under it is
+    inlined. Fixture names using the `dot-` convention (dot-github,
+    dot-CLAUDE.md) are presented under their real names.
+    """
     parts = [eval_def["prompt"]]
 
     for rel_path in eval_def.get("files", []):
-        file_path = evals_dir / rel_path
-        if not file_path.exists():
-            raise FileNotFoundError(f"Eval input missing: {file_path}")
-        content = file_path.read_text()
-        parts.append(f"\n\n### `{rel_path}`\n```hcl\n{content}\n```")
+        target = skill_dir / rel_path
+        if not target.exists():
+            raise FileNotFoundError(f"Eval input missing: {target}")
+        paths = sorted(p for p in target.rglob("*") if p.is_file()) if target.is_dir() else [target]
+        for file_path in paths:
+            shown = str(file_path.relative_to(skill_dir))
+            shown = shown.replace("dot-github", ".github").replace("dot-CLAUDE.md", "CLAUDE.md")
+            parts.append(f"\n\n### `{shown}`\n```\n{file_path.read_text()}\n```")
 
     return "".join(parts)
 
 
-def run_eval(client, eval_def: dict, evals_dir: Path, skill_content: str, model: str) -> dict:
+def run_eval(client, eval_def: dict, skill_dir: Path, skill_content: str, model: str) -> dict:
     """Send one eval to the API and return the response text + token counts."""
-    user_message = build_user_message(eval_def, evals_dir)
+    user_message = build_user_message(eval_def, skill_dir)
 
     response = client.messages.create(
         model=model,
@@ -96,20 +105,20 @@ def run_eval(client, eval_def: dict, evals_dir: Path, skill_content: str, model:
 # Grading
 # ---------------------------------------------------------------------------
 
-GRADING_PROMPT = """You are grading a Claude response against a list of assertions.
+GRADING_PROMPT = """You are grading a Claude response against a list of expectations.
 
-For each assertion, output a JSON object with these keys:
-  - "name": the assertion name verbatim
+For each expectation, output a JSON object with these keys:
+  - "text": the expectation string verbatim
   - "verdict": one of "PASS", "FAIL", "PARTIAL"
   - "reason": a one-sentence justification
 
 Return a JSON array of these objects and nothing else. No prose, no markdown
 fences, no preamble. Be strict: PASS only if the response clearly satisfies
-the assertion; PARTIAL if it gestures at the right idea but misses detail;
+the expectation; PARTIAL if it gestures at the right idea but misses detail;
 FAIL otherwise.
 
-ASSERTIONS:
-{assertions_json}
+EXPECTATIONS:
+{expectations_json}
 
 RESPONSE TO GRADE:
 {response}
@@ -117,9 +126,9 @@ RESPONSE TO GRADE:
 
 
 def grade_response(client, eval_def: dict, response_text: str, model: str) -> dict:
-    """Have the grader model judge the response against the eval's assertions."""
+    """Have the grader model judge the response against the eval's expectations."""
     prompt = GRADING_PROMPT.format(
-        assertions_json=json.dumps(eval_def["assertions"], indent=2),
+        expectations_json=json.dumps(eval_def["expectations"], indent=2),
         response=response_text,
     )
 
@@ -223,7 +232,9 @@ def main() -> int:
 
     skill_content = args.skill.read_text()
     evals_data = json.loads(args.evals.read_text())
-    evals_dir = args.evals.parent
+    # evals.json lives at <skill>/evals/evals.json; `files` paths are relative
+    # to the skill root, per the skill-creator schema.
+    skill_dir = args.evals.parent.parent
 
     evals_to_run = evals_data["evals"]
     if args.eval_ids:
@@ -248,7 +259,7 @@ def main() -> int:
     results = []
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = {
-            pool.submit(run_eval, client, e, evals_dir, skill_content, args.model): e
+            pool.submit(run_eval, client, e, skill_dir, skill_content, args.model): e
             for e in evals_to_run
         }
         for fut in as_completed(futures):
