@@ -1,0 +1,50 @@
+{
+  "skill_name": "doc-hygiene",
+  "evals": [
+    {
+      "id": 1,
+      "name": "dedupe-claude-md-against-readme",
+      "prompt": "Why does the CLAUDE.md duplicate most of the README.md? I explicitly said not to do this. The README.md is designed for humans, CLAUDE.md is for agents. There shouldn't be any duplication between them. Fix the docs in this project.",
+      "expected_output": "CLAUDE.md is rewritten so the duplicated Requirements/Usage/Deployment content is removed and replaced with short references to the relevant README sections; the agent-specific Conventions section is retained. README.md keeps its human-facing content, and the generated terraform-docs block is untouched.",
+      "files": ["evals/files/duplicated-docs/"],
+      "expectations": [
+        "CLAUDE.md no longer contains the duplicated Requirements list, Usage HCL block, or Deployment paragraph verbatim",
+        "CLAUDE.md references the README (e.g. 'see README.md') for setup/usage instead of restating it",
+        "The Conventions section of CLAUDE.md (locals placement, no jsonencode, fmt/validate/tflint, moved blocks) is preserved",
+        "The content between <!-- BEGIN_TF_DOCS --> and <!-- END_TF_DOCS --> in README.md is byte-identical to the original",
+        "README.md remains human-oriented and does not gain agent-only conventions"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "drift-check-after-code-change",
+      "prompt": "I just added a --dry-run flag and support for a SITECHECK_TOKEN environment variable to sitecheck. Does any of the documentation need updating as a result of these changes?",
+      "expected_output": "Yes — the README documents --depth and --format but not --dry-run or SITECHECK_TOKEN. The README is updated to document both (what --dry-run does, and that SITECHECK_TOKEN enables crawling authenticated pages as a bearer token), and the response states explicitly what was updated.",
+      "files": ["evals/files/undocumented-cli/"],
+      "expectations": [
+        "The response identifies that --dry-run is missing from the README options list",
+        "The response identifies that the SITECHECK_TOKEN environment variable is undocumented",
+        "README.md is updated to document the --dry-run flag with an accurate description (lists URLs without fetching)",
+        "README.md is updated to document SITECHECK_TOKEN with an accurate description (bearer token for authenticated pages)",
+        "The final response explicitly states which files were updated and what changed, rather than silently editing",
+        "No CLAUDE.md is created for this change (it is human-facing usage documentation, which belongs in the README)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "create-docs-with-clean-split",
+      "prompt": "Review the code in this project and create a README.md and a CLAUDE.md. README.md is primarily for humans. CLAUDE.md is for coding agents. If something is relevant for both, put it in the README.md and reference the relevant section from the CLAUDE.md.",
+      "expected_output": "A human-oriented README.md (purpose, install, usage of the tagsort CLI including path, --check, the required tag keys, and CI exit-code behaviour) and a short CLAUDE.md that references the README rather than restating it, adding only agent-relevant material (e.g. tooling commands like uv/ruff/pytest). No duplicated paragraphs between the two, no AI-slop tropes, headings in Title Case.",
+      "files": ["evals/files/new-project/"],
+      "expectations": [
+        "README.md exists and accurately documents the CLI: the path argument, the --check flag with its CI exit-code behaviour, and the required tag keys (Owner, CostCentre, Environment)",
+        "CLAUDE.md exists, references the README for shared information, and contains no paragraph duplicated from the README",
+        "No banned trope vocabulary appears in either file (none of: delve, seamless/seamlessly, leverage, robust, comprehensive, cutting-edge, empower, streamline, game-changing)",
+        "Neither file contains exclamation marks or a 'Happy coding'-style sign-off",
+        "All headings in both files use Title Case",
+        "There is no contribution-guide boilerplate section",
+        "No claim is made about behaviour the code does not implement (e.g. no invented flags or config files)"
+      ]
+    }
+  ]
+}
