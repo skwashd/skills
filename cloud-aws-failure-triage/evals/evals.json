@@ -1,0 +1,49 @@
+{
+  "skill_name": "aws-failure-triage",
+  "evals": [
+    {
+      "id": 1,
+      "name": "ssm-access-denied-minimal-fix",
+      "prompt": "Our web app container is failing at startup with this error:\n\nAn error occurred (AccessDeniedException) when calling the GetParametersByPath operation: User: arn:aws:sts::123456789012:assumed-role/web-app-task/8f41c3f2 is not authorized to perform: ssm:GetParametersByPath on resource: arn:aws:ssm:eu-west-1:123456789012:parameter/apps/web/prod because no identity-based policy allows the ssm:GetParametersByPath action\n\nThe Terraform for the role is in this directory. Fix it.",
+      "expected_output": "The ReadAppParameters statement (or a new minimal statement) in iam.tf grants ssm:GetParametersByPath scoped to BOTH resource forms — arn:aws:ssm:eu-west-1:123456789012:parameter/apps/web/prod AND arn:aws:ssm:eu-west-1:123456789012:parameter/apps/web/prod/* — with no wildcard actions or resources. Nothing else in the policy changes.",
+      "files": ["evals/files/ssm-access-denied/"],
+      "expectations": [
+        "The policy document in iam.tf now allows the ssm:GetParametersByPath action for the web-app-task role",
+        "The granted resources include both the bare path ARN (...parameter/apps/web/prod) and the path-wildcard ARN (...parameter/apps/web/prod/*)",
+        "No statement uses \"*\" as an action or as a resource",
+        "The fix stays in the aws_iam_policy_document data source style — no jsonencode() policy JSON is introduced",
+        "The WriteAppLogs statement and the assume-role policy are unchanged",
+        "The response explains the two-resource-form requirement for SSM path operations (why granting only one form still yields AccessDenied)"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "cert-in-use-evidence-before-action",
+      "prompt": "I'm trying to remove the old CloudFront setup and the stack has been stuck for an hour. It finally failed with:\n\nDELETE_FAILED: Certificate arn:aws:acm:us-east-1:123456789012:certificate/2b7e5c9a-1f4d-4e26-9d3e-6f8a1b2c3d4e in use\n\nI don't have the AWS console open right now. How do we fix this? I really don't want to lose the Cognito user pool that's in the same stack.",
+      "expected_output": "An evidence-first plan: read-only commands to run first (aws acm describe-certificate --certificate-arn ... --query 'Certificate.InUseBy' to find what still references the certificate, aws cloudformation describe-stack-events for the first FAILED event), then the fix — re-point or remove the referencing distribution/listener before the certificate can delete, ordering the change so the reference is released first. The Cognito user pool must be protected: set DeletionPolicy/RemovalPolicy Retain on it (or confirm it already retains) before any further delete attempts; at no point is force-deleting the stack or its stateful resources proposed as a first step.",
+      "files": [],
+      "expectations": [
+        "The response provides the exact read-only command to find what holds the certificate (acm describe-certificate with the InUseBy query, or equivalent) before proposing any change",
+        "The response asks for or plans around the output of those commands rather than asserting what holds the certificate without evidence",
+        "The explanation identifies the general cause: a resource outside the delete set (e.g. a CloudFront distribution or listener) still references the certificate, and the reference must be released before deletion",
+        "The Cognito user pool is explicitly protected: a retain policy (DeletionPolicy: Retain / RemovalPolicy.RETAIN) is applied or verified before further destructive attempts",
+        "No step proposes deleting the stack, the user pool, or force-skipping resources as the first action",
+        "The plan ends with a verification step (delete completes, stack reaches a *_COMPLETE state)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "eventbridge-pattern-mismatch",
+      "prompt": "I just tried creating an S3 bucket through the manager and the create-bucket step function never fired. The rule and target are in events.tf, the code that publishes the event is publisher.py, and I captured one of the actual events off the bus with a debug rule — it's in captured-event.json. Why isn't this working?",
+      "expected_output": "Diagnosis: the rule pattern does not match the real event on two fields — detail-type (rule expects \"bucket_create_requested\", event carries \"Bucket Create Requested\") and detail.resource_type (rule expects detail.resource_type, event carries detail.resourceType). Fix: make pattern and producer agree on both fields (either side may be changed, but consistently), applied in the Terraform/producer code rather than the console. Verification via aws events test-event-pattern with the captured event, and checking the rule's FailedInvocations/target afterwards.",
+      "files": ["evals/files/event-mismatch/"],
+      "expectations": [
+        "The detail-type mismatch between the rule pattern (bucket_create_requested) and the actual event (Bucket Create Requested) is identified, including that pattern matching is case-sensitive and exact",
+        "The second mismatch is identified: the pattern matches detail.resource_type but the event carries detail.resourceType",
+        "The fix changes the rule pattern and/or the publisher so BOTH fields agree consistently, in the source files (events.tf / publisher.py), not via console edits",
+        "The response suggests validating the corrected pattern against captured-event.json with aws events test-event-pattern (or an equivalent offline check)",
+        "The response notes the follow-on verification: confirm the target fires (rule Invocations/FailedInvocations metrics or a live end-to-end event) since a matching rule can still fail at the target"
+      ]
+    }
+  ]
+}
