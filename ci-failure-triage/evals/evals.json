@@ -1,0 +1,101 @@
+{
+  "skill_name": "ci-failure-triage",
+  "evals": [
+    {
+      "id": 1,
+      "name": "lint-failure-fix-not-suppress",
+      "prompt": "GitHub Actions is failing on my PR. The Lint step is reporting these errors:\n\norders/app.py:5:8: F401 [*] `sys` imported but unused\norders/app.py:16:20: E711 Comparison to `None` should be `cond is None`\nError: Process completed with exit code 1.\n\nPlease fix the CI. The project files are in the working directory.",
+      "expected_output": "Both ruff findings fixed at the root cause in orders/app.py (unused import removed, `== None` changed to `is None`), verified by running the same lint command the workflow runs. No suppressions or config changes.",
+      "files": [
+        "evals/files/lint-drift/"
+      ],
+      "expectations": [
+        "The unused `sys` import is removed from orders/app.py",
+        "The `order.tier == None` comparison is changed to `order.tier is None`",
+        "No `# noqa` comment is added anywhere",
+        "The ruff configuration in pyproject.toml is unchanged (no rules disabled, no ignores added)",
+        "The transcript shows the lint command being run locally to verify the fix (ruff check, ideally via uv run as the workflow does)",
+        "The final response identifies the Lint step of the quality job as the failing step"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "upstream-action-drift-pin-version",
+      "prompt": "My GitHub Actions lint workflow started failing and I haven't touched the Go code or the lint config in days. The log from the failed run is in ci-log.txt. Fix it \u2014 and I don't want this happening again every time upstream ships something.",
+      "expected_output": "Diagnosis: the workflow floats on golangci/golangci-lint-action@master, which picked up the golangci-lint v2 release; v2 rejects the v1-format .golangci.yml. Fix: pin the action to an exact released version (tag or SHA, not master/main/latest). Either pin to the last v1-compatible version, or pin to a v2 version AND migrate .golangci.yml to the v2 format \u2014 both are acceptable as long as the version is exact.",
+      "files": [
+        "evals/files/action-drift/"
+      ],
+      "expectations": [
+        "The root cause is identified as the floating @master reference picking up a new major release of golangci-lint",
+        "The workflow no longer references @master, @main, or @latest for the golangci-lint action",
+        "The action is pinned to an exact version (a vX.Y.Z-style tag or a commit SHA)",
+        "If a v2-capable action version is pinned, .golangci.yml is migrated to v2 format (run.timeout and issues.exclude-use-default removed/replaced); if a v1-era version is pinned, .golangci.yml is left compatible",
+        "The lint step is not deleted, disabled, or made non-blocking (no continue-on-error)",
+        "The response explains that pinning exact versions prevents recurrence"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "run-url-evidence-first",
+      "prompt": "The CI failed for this pull request. Check out the run at https://github.com/skwashd/orders-api/actions/runs/33418851244/job/99577214218#step:5:12 and fix whatever is wrong. Do not commit the fix, I will rebase it myself.",
+      "expected_output": "The agent attempts to fetch the failing step's log with the gh CLI (gh run view 33418851244 --log-failed or similar) before proposing any fix. Since the repository is not accessible from this environment, gh fails; the agent then explicitly asks for the log output (naming the exact gh command or the step whose log it needs) instead of guessing at a fix. No commits are made.",
+      "files": [],
+      "expectations": [
+        "The transcript shows an attempt to retrieve the run or job log via the gh CLI (e.g. `gh run view 33418851244 --log-failed`), not via WebFetch or curl on the HTML page",
+        "The run ID 33418851244 (and/or job ID 99577214218) is correctly extracted from the URL and used in the command",
+        "No speculative code or workflow changes are made without log evidence",
+        "When log access fails, the final response asks the user to provide the failing step's log and names the exact command the user can run to get it",
+        "No git commit is created (the user said they will rebase the fix themselves)"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "runner-image-update-toolchain-drift",
+      "prompt": "My site build on GitHub Actions broke overnight and nobody pushed anything \u2014 the failing run is on the exact same commit that passed two weeks ago. The error suggests something in the environment has changed. I've saved the log of the last green run (logs/green-run.log) and the failing run (logs/red-run.log), and the workflow is in .github/workflows/build.yml. What happened and how do I fix it properly?",
+      "expected_output": "Diagnosis: the runner image was updated (Image Version 20260815.1.0 -> 20260901.2.0) and the preinstalled Node moved to v24, which breaks the legacy webpack hash plugin (the EBADENGINE warning names node >=18 <23). Fix: stop relying on the preinstalled toolchain \u2014 add an actions/setup-node step pinning an exact supported Node version (e.g. 22.x). No changes to the application code.",
+      "files": [
+        "evals/files/image-drift/"
+      ],
+      "expectations": [
+        "The diagnosis compares the Set up job headers of the two logs and identifies the runner Image Version change as the trigger",
+        "The Node version change (22-era to v24.7.0) is identified as the mechanism, connected to the EBADENGINE warning naming `node: '>=18 <23'`",
+        "The fix adds an actions/setup-node step to build.yml with an explicitly pinned Node version that satisfies >=18 <23 (an exact version inline or via a committed .nvmrc both count)",
+        "The response explains that preinstalled runner toolchains are not a stable interface and pinning prevents recurrence",
+        "No application source or package.json dependency changes are proposed as the primary fix"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "shared-runner-ip-rate-limit",
+      "prompt": "One of our GitHub Actions jobs keeps failing with 429 errors when downloading a model from Hugging Face \u2014 log attached in ci-log.txt. It never fails on my laptop. A teammate suggested we just add our HF_TOKEN as a repo secret and pass it to the download script. Is that the right fix?",
+      "expected_output": "Diagnosis: hosted runners share egress IPs across all of GitHub's customers, so unauthenticated Hugging Face requests from runners get rate limited; the laptop uses a residential IP and never hits it. On the teammate's suggestion: the workflow runs on pull_request for a public repo with fork PRs \u2014 fork pull_request runs don't receive secrets, so the download would still fail on fork PRs, and the token must never be made available to fork-controlled code via pull_request_target. Preferred fix: cache the model artifact (actions/cache keyed on the model name/revision) so the download rarely happens, optionally combined with an authenticated fetch for trusted contexts.",
+      "files": [
+        "evals/files/rate-limit/"
+      ],
+      "expectations": [
+        "The root cause is identified as rate limiting of the shared egress IPs used by GitHub-hosted runners (explaining why it fails in CI but never locally)",
+        "Caching the downloaded model (e.g. actions/cache) is proposed as the primary fix",
+        "The response flags the fork-PR problem with the token suggestion: secrets are unavailable to fork pull_request runs, and exposing the token to fork-controlled code (e.g. via pull_request_target) would be a security risk",
+        "The response does not propose unbounded retry loops as the fix",
+        "The response does not propose switching the workflow to pull_request_target"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "runner-disk-exhaustion",
+      "prompt": "Our integration test job is failing with the log in ci-log.txt. Can you work out what's going on and fix it? I'd rather not rewrite the whole test setup.",
+      "expected_output": "Diagnosis: the runner's root volume (~72GB, 99% used) is exhausted during docker build; the tipping point was the new analytics container whose torch install builds a ~6.2GB image, on top of an already ~88%-full disk. Fixes offered: free runner disk at job start (remove unneeded preinstalled software), prune docker build cache between builds, slim the analytics image (CPU-only torch wheel or a slimmer base), use the larger /mnt volume for docker, or move to a larger runner. Not a code/test-logic problem.",
+      "files": [
+        "evals/files/disk-full/"
+      ],
+      "expectations": [
+        "The failure is classified as runner disk exhaustion (ENOSPC on /dev/root), not a code or test bug",
+        "The new analytics container (torch, ~6.2GB) is identified as the change that tipped the already-nearly-full disk over",
+        "At least two concrete remediations are proposed from: freeing preinstalled software at job start, docker prune between builds, slimming the torch/analytics image, relocating docker storage to /mnt, using a larger runner",
+        "The response does not propose deleting or skipping the integration tests",
+        "The df -h output (0.9G available on /, 66G available on /mnt) is used as evidence in the diagnosis"
+      ]
+    }
+  ]
+}

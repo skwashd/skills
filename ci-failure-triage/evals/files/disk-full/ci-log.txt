@@ -1,0 +1,19 @@
+Integration Tests / integration — runs-on: ubuntu-24.04
+Build test containers
+  Run docker compose -f docker-compose.test.yml build
+  => [app internal] load build context: 412.32MB
+  => [db 4/7] RUN ./scripts/load-fixtures.sh
+  => [app 9/12] RUN npm run build
+  failed to register layer: ApplyLayer exit status 1 stdout:  stderr:
+  write /usr/local/lib/site/assets/vendor.bundle.js: no space left on device
+  Error: Process completed with exit code 1.
+
+Run df -h (added for debugging on the re-run):
+  Filesystem      Size  Used Avail Use% Mounted on
+  /dev/root        72G   71G  0.9G  99% /
+  /dev/sdb1        74G  4.1G   66G   6% /mnt
+
+History: this job started failing this week. Last week's runs show
+/dev/root at ~88% after the build. The only recent change was adding the
+new analytics service container (analytics/Dockerfile, FROM python:3.13,
+image builds to ~6.2GB because it installs torch).
