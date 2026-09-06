@@ -7,99 +7,33 @@
       "prompt": "Can you review this Lambda module? It's been sitting in our repo for a while and I want to clean it up before we expand it.",
       "expected_output": "A severity-grouped review (Critical / Warning / Suggestion) that flags the deprecated S3 inline configuration, public ACL, jsonencode-based IAM policies, inline IAM policy resource, missing CloudWatch retention, inline security-group rule, label/name redundancy, vpc_id variable anti-pattern, and the variable hygiene issues. Findings should cite the relevant dave-says tflint rule names where they exist.",
       "files": [
-        "inputs/dirty-module/main.tf",
-        "inputs/dirty-module/variables.tf",
-        "inputs/dirty-module/outputs.tf"
+        "evals/files/dirty-module/main.tf",
+        "evals/files/dirty-module/variables.tf",
+        "evals/files/dirty-module/outputs.tf"
       ],
-      "assertions": [
-        {
-          "name": "groups findings by severity",
-          "description": "Response organises findings into Critical, Warning, and Suggestion sections (or equivalent buckets) rather than a flat list."
-        },
-        {
-          "name": "flags inline S3 versioning block as Critical",
-          "description": "Identifies the `versioning {}` block inside `aws_s3_bucket.s3_bucket` as deprecated and Critical, with the fix being to extract it to a separate `aws_s3_bucket_versioning` resource. Cites `dave_s3_no_inline_config`."
-        },
-        {
-          "name": "flags inline server_side_encryption_configuration as Critical",
-          "description": "Identifies the inline `server_side_encryption_configuration` block as a second instance of the same deprecation, with the fix being to extract to `aws_s3_bucket_server_side_encryption_configuration`."
-        },
-        {
-          "name": "flags public-read ACL as Critical",
-          "description": "Flags `acl = \"public-read\"` on the `aws_s3_bucket_acl` resource as Critical, references `dave_s3_no_public_acl`, mentions ERROR severity and autofix to private."
-        },
-        {
-          "name": "flags missing bucket_namespace",
-          "description": "Notes that the S3 bucket does not set `bucket_namespace = \"account-regional\"` and recommends switching, citing `dave_s3_bucket_namespace`."
-        },
-        {
-          "name": "flags jsonencode in assume_role_policy",
-          "description": "Flags the `jsonencode(...)` call in `assume_role_policy` and recommends an `aws_iam_policy_document` data source. Cites `dave_aws_policy_no_jsonencode`."
-        },
-        {
-          "name": "flags missing confused deputy condition",
-          "description": "Notes that the assume role policy does not restrict by `aws:SourceAccount` and treats this as a security concern, not just a style issue."
-        },
-        {
-          "name": "flags jsonencode in inline policy",
-          "description": "Flags the second `jsonencode(...)` call in `aws_iam_role_policy.lambda_policy`."
-        },
-        {
-          "name": "flags inline aws_iam_role_policy",
-          "description": "Identifies `aws_iam_role_policy` as an inline policy resource and recommends `aws_iam_policy` + `aws_iam_role_policy_attachment`. Cites `dave_iam_no_inline_policy`."
-        },
-        {
-          "name": "flags overly broad S3 IAM permissions",
-          "description": "Calls out that `Resource = \"*\"` in the Lambda policy is too broad and recommends scoping to the specific bucket ARN."
-        },
-        {
-          "name": "flags label my_role",
-          "description": "Identifies that the `aws_iam_role.my_role` label repeats the resource type. Suggests `lambda` (the service name) per the skill's IAM naming guidance. Cites `dave_label_no_type_substring`."
-        },
-        {
-          "name": "flags label s3_bucket",
-          "description": "Identifies that the `aws_s3_bucket.s3_bucket` label repeats the resource type. Suggests `this` or a purpose-based label. Cites `dave_label_no_type_substring`."
-        },
-        {
-          "name": "flags bucket name containing type",
-          "description": "Identifies that `bucket = \"my-app-input-bucket\"` contains the word \"bucket\". Cites `dave_resource_name_no_type_substring`."
-        },
-        {
-          "name": "flags missing CloudWatch retention",
-          "description": "Flags `aws_cloudwatch_log_group.lambda_logs` for not setting `retention_in_days`, recommends 30 as the default, cites `dave_cloudwatch_log_retention`, mentions autofix."
-        },
-        {
-          "name": "flags inline egress block on security group",
-          "description": "Identifies the inline `egress {}` block on `aws_security_group.lambda_sg` and recommends `aws_vpc_security_group_egress_rule`. Cites `dave_security_group_no_inline_rules`."
-        },
-        {
-          "name": "flags var.vpc_id usage",
-          "description": "Flags `var.vpc_id` as an anti-pattern and recommends deriving the VPC ID from a `data.aws_subnet` lookup of the first subnet. Cites `dave_no_vpc_id_variable`."
-        },
-        {
-          "name": "flags var.region",
-          "description": "Flags `variable \"region\"` and recommends using `data.aws_region.current.region` instead. Cites `dave_variable_region`."
-        },
-        {
-          "name": "flags variables out of alphabetical order",
-          "description": "Notes that variables in `variables.tf` are not sorted alphabetically. Cites `dave_variable_alphabetical_order`."
-        },
-        {
-          "name": "flags region variable missing description",
-          "description": "Notes that `variable \"region\"` has no description. Cites `dave_variable_has_description`."
-        },
-        {
-          "name": "flags tags variable missing type",
-          "description": "Notes that `variable \"tags\"` has no `type` constraint. Cites `dave_variable_has_type`."
-        },
-        {
-          "name": "flags missing tags on resources",
-          "description": "Notes that none of the resources apply `var.tags`."
-        },
-        {
-          "name": "flags missing kms_master_key_id with aws:kms placeholder",
-          "description": "If the review mentions encryption: notes that using `AES256` (or the default) over `aws:kms` with a customer-managed key is a downgrade, OR (if not raised) the review at least does not claim the current encryption setup is best practice. This assertion is informational; partial credit acceptable."
-        }
+      "expectations": [
+        "Groups findings by severity — the response organises findings into Critical, Warning, and Suggestion sections (or equivalent buckets) rather than a flat list.",
+        "Flags the `versioning {}` block inside `aws_s3_bucket.s3_bucket` as deprecated and Critical, with the fix being to extract it to a separate `aws_s3_bucket_versioning` resource. Cites `dave_s3_no_inline_config`.",
+        "Flags the inline `server_side_encryption_configuration` block as a second instance of the same deprecation, with the fix being to extract to `aws_s3_bucket_server_side_encryption_configuration`.",
+        "Flags `acl = \"public-read\"` on the `aws_s3_bucket_acl` resource as Critical, references `dave_s3_no_public_acl`, mentions ERROR severity and autofix to private.",
+        "Notes that the S3 bucket does not set `bucket_namespace = \"account-regional\"` and recommends switching, citing `dave_s3_bucket_namespace`.",
+        "Flags the `jsonencode(...)` call in `assume_role_policy` and recommends an `aws_iam_policy_document` data source. Cites `dave_aws_policy_no_jsonencode`.",
+        "Flags missing confused deputy condition — notes that the assume role policy does not restrict by `aws:SourceAccount` and treats this as a security concern, not just a style issue.",
+        "Flags the second `jsonencode(...)` call in `aws_iam_role_policy.lambda_policy`.",
+        "Identifies `aws_iam_role_policy` as an inline policy resource and recommends `aws_iam_policy` + `aws_iam_role_policy_attachment`. Cites `dave_iam_no_inline_policy`.",
+        "Calls out that `Resource = \"*\"` in the Lambda policy is too broad and recommends scoping to the specific bucket ARN.",
+        "Identifies that the `aws_iam_role.my_role` label repeats the resource type. Suggests `lambda` (the service name) per the skill's IAM naming guidance. Cites `dave_label_no_type_substring`.",
+        "Identifies that the `aws_s3_bucket.s3_bucket` label repeats the resource type. Suggests `this` or a purpose-based label. Cites `dave_label_no_type_substring`.",
+        "Identifies that `bucket = \"my-app-input-bucket\"` contains the word \"bucket\". Cites `dave_resource_name_no_type_substring`.",
+        "Flags `aws_cloudwatch_log_group.lambda_logs` for not setting `retention_in_days`, recommends 30 as the default, cites `dave_cloudwatch_log_retention`, mentions autofix.",
+        "Identifies the inline `egress {}` block on `aws_security_group.lambda_sg` and recommends `aws_vpc_security_group_egress_rule`. Cites `dave_security_group_no_inline_rules`.",
+        "Flags `var.vpc_id` as an anti-pattern and recommends deriving the VPC ID from a `data.aws_subnet` lookup of the first subnet. Cites `dave_no_vpc_id_variable`.",
+        "Flags `variable \"region\"` and recommends using `data.aws_region.current.region` instead. Cites `dave_variable_region`.",
+        "Notes that variables in `variables.tf` are not sorted alphabetically. Cites `dave_variable_alphabetical_order`.",
+        "Notes that `variable \"region\"` has no description. Cites `dave_variable_has_description`.",
+        "Notes that `variable \"tags\"` has no `type` constraint. Cites `dave_variable_has_type`.",
+        "Notes that none of the resources apply `var.tags`.",
+        "If the review mentions encryption: notes that using `AES256` (or the default) over `aws:kms` with a customer-managed key is a downgrade, OR (if not raised) the review at least does not claim the current encryption setup is best practice. This expectation is informational; partial credit acceptable."
       ]
     },
     {
@@ -108,39 +42,18 @@
       "prompt": "Quick sanity check on this S3 bucket module before I merge it — anything you'd change?",
       "expected_output": "A short review that recognises the module follows the skill's guidance and does not invent issues. Any feedback is minor and clearly framed as optional (e.g. consider enabling access logging, consider adding lifecycle rules).",
       "files": [
-        "inputs/clean-module/main.tf",
-        "inputs/clean-module/variables.tf",
-        "inputs/clean-module/outputs.tf"
+        "evals/files/clean-module/main.tf",
+        "evals/files/clean-module/variables.tf",
+        "evals/files/clean-module/outputs.tf"
       ],
-      "assertions": [
-        {
-          "name": "no Critical findings",
-          "description": "The review does not produce any Critical-severity findings on this module."
-        },
-        {
-          "name": "no false flag on bucket_namespace",
-          "description": "Does NOT flag the bucket as missing `bucket_namespace` (it is set correctly)."
-        },
-        {
-          "name": "no false flag on encryption",
-          "description": "Does NOT flag the bucket as unencrypted or missing SSE configuration."
-        },
-        {
-          "name": "no false flag on inline S3 config",
-          "description": "Does NOT incorrectly identify the separate `aws_s3_bucket_versioning` / `aws_s3_bucket_server_side_encryption_configuration` resources as inline-style configuration."
-        },
-        {
-          "name": "no fabricated tflint citations",
-          "description": "If tflint rules are cited, they are real rules from the dave-says ruleset (not invented)."
-        },
-        {
-          "name": "any suggestions are framed as optional",
-          "description": "If the review surfaces suggestions (e.g. enable access logging, add lifecycle rules), they are clearly framed as optional improvements rather than violations."
-        },
-        {
-          "name": "recognises the public access block",
-          "description": "Either positively acknowledges the `aws_s3_bucket_public_access_block` resource, or at minimum does not claim the bucket is at risk of being public."
-        }
+      "expectations": [
+        "No Critical findings — the review does not produce any Critical-severity findings on this module.",
+        "No false flag on bucket_namespace — does NOT flag the bucket as missing `bucket_namespace` (it is set correctly).",
+        "No false flag on encryption — does NOT flag the bucket as unencrypted or missing SSE configuration.",
+        "No false flag on inline S3 config — does NOT incorrectly identify the separate `aws_s3_bucket_versioning` / `aws_s3_bucket_server_side_encryption_configuration` resources as inline-style configuration.",
+        "No fabricated tflint citations — if tflint rules are cited, they are real rules from the dave-says ruleset (not invented).",
+        "Any suggestions are framed as optional — if the review surfaces suggestions (e.g. enable access logging, add lifecycle rules), they are clearly framed as optional improvements rather than violations.",
+        "Recognises the public access block — either positively acknowledges the `aws_s3_bucket_public_access_block` resource, or at minimum does not claim the bucket is at risk of being public."
       ]
     },
     {
@@ -149,63 +62,21 @@
       "prompt": "I need a Terraform module for a Lambda function that processes events from an input S3 bucket and writes results to an output S3 bucket. The Lambda should run in a VPC. Can you scaffold this for me?",
       "expected_output": "A multi-file module scaffold applying the skill's guidance proactively: labelled correctly, files split (versions.tf / variables.tf / outputs.tf / main.tf for data sources / service-grouped resource files), policies via aws_iam_policy_document with confused deputy conditions, S3 buckets in the account-regional namespace, CloudWatch log group with retention, standalone security group rules, vpc_id derived from a subnet lookup, every variable typed and described, all resources tagged.",
       "files": [],
-      "assertions": [
-        {
-          "name": "files split correctly",
-          "description": "The scaffold uses separate files: at minimum `versions.tf`, `variables.tf`, `outputs.tf`, and resources split into service-grouped files (e.g. `s3.tf`, `lambda.tf`, `iam.tf`, `network.tf`). `main.tf` contains only data sources or is omitted."
-        },
-        {
-          "name": "labels avoid type substrings",
-          "description": "No resource label contains words from its type (e.g. `aws_iam_role.lambda` not `aws_iam_role.lambda_role`)."
-        },
-        {
-          "name": "S3 buckets use account-regional namespace",
-          "description": "Every `aws_s3_bucket` resource sets `bucket_namespace = \"account-regional\"` and constructs the name with the account ID and region suffix."
-        },
-        {
-          "name": "no inline S3 configuration",
-          "description": "S3 versioning, encryption, etc. are configured via dedicated sub-resources (`aws_s3_bucket_versioning`, `aws_s3_bucket_server_side_encryption_configuration`, ...), not inline blocks."
-        },
-        {
-          "name": "IAM policies use aws_iam_policy_document",
-          "description": "No `jsonencode()` is used for IAM policy documents. The assume role policy and any inline-or-attached policies are defined via `aws_iam_policy_document` data sources."
-        },
-        {
-          "name": "confused deputy condition present",
-          "description": "The Lambda assume role policy includes a `condition` block restricting by `aws:SourceAccount` to the current account."
-        },
-        {
-          "name": "managed policies attached, not inline",
-          "description": "The Lambda role uses `aws_iam_policy` + `aws_iam_role_policy_attachment`, not `aws_iam_role_policy`."
-        },
-        {
-          "name": "CloudWatch log group with retention",
-          "description": "An `aws_cloudwatch_log_group` is created for the Lambda with `retention_in_days` set (30 unless the user is asked)."
-        },
-        {
-          "name": "standalone security group rules",
-          "description": "Security group rules use `aws_vpc_security_group_ingress_rule` / `aws_vpc_security_group_egress_rule`, not inline `ingress`/`egress` blocks on `aws_security_group`."
-        },
-        {
-          "name": "vpc_id derived from subnet",
-          "description": "The module does not accept `vpc_id` as a variable. Instead it accepts `subnet_ids` and derives the VPC via `data.aws_subnet.first.vpc_id` (or equivalent)."
-        },
-        {
-          "name": "variables typed and described",
-          "description": "Every variable has both a `type` and a `description`. No bare `variable \"x\" {}`."
-        },
-        {
-          "name": "variables alphabetical",
-          "description": "Variables in `variables.tf` are sorted alphabetically by name."
-        },
-        {
-          "name": "tags applied",
-          "description": "Every taggable resource sets `tags = var.tags` (or `merge(var.tags, ...)` if a Name tag is needed)."
-        },
-        {
-          "name": "bucket outputs include id-based name",
-          "description": "If S3 outputs are produced, `bucket_name` uses `.id` (not the `bucket` argument) so the resolved namespaced name is returned."
-        }
+      "expectations": [
+        "Files split correctly — the scaffold uses separate files: at minimum `versions.tf`, `variables.tf`, `outputs.tf`, and resources split into service-grouped files (e.g. `s3.tf`, `lambda.tf`, `iam.tf`, `network.tf`). `main.tf` contains only data sources or is omitted.",
+        "Labels avoid type substrings — no resource label contains words from its type (e.g. `aws_iam_role.lambda` not `aws_iam_role.lambda_role`).",
+        "S3 buckets use account-regional namespace — every `aws_s3_bucket` resource sets `bucket_namespace = \"account-regional\"` and constructs the name with the account ID and region suffix.",
+        "No inline S3 configuration — S3 versioning, encryption, etc. are configured via dedicated sub-resources (`aws_s3_bucket_versioning`, `aws_s3_bucket_server_side_encryption_configuration`, ...), not inline blocks.",
+        "IAM policies use aws_iam_policy_document — no `jsonencode()` is used for IAM policy documents. The assume role policy and any inline-or-attached policies are defined via `aws_iam_policy_document` data sources.",
+        "Confused deputy condition present — the Lambda assume role policy includes a `condition` block restricting by `aws:SourceAccount` to the current account.",
+        "Managed policies attached, not inline — the Lambda role uses `aws_iam_policy` + `aws_iam_role_policy_attachment`, not `aws_iam_role_policy`.",
+        "CloudWatch log group with retention — an `aws_cloudwatch_log_group` is created for the Lambda with `retention_in_days` set (30 unless the user is asked).",
+        "Standalone security group rules — security group rules use `aws_vpc_security_group_ingress_rule` / `aws_vpc_security_group_egress_rule`, not inline `ingress`/`egress` blocks on `aws_security_group`.",
+        "vpc_id derived from subnet — the module does not accept `vpc_id` as a variable. Instead it accepts `subnet_ids` and derives the VPC via `data.aws_subnet.first.vpc_id` (or equivalent).",
+        "Variables typed and described — every variable has both a `type` and a `description`. No bare `variable \"x\" {}`.",
+        "Variables alphabetical — variables in `variables.tf` are sorted alphabetically by name.",
+        "Tags applied — every taggable resource sets `tags = var.tags` (or `merge(var.tags, ...)` if a Name tag is needed).",
+        "Bucket outputs include id-based name — if S3 outputs are produced, `bucket_name` uses `.id` (not the `bucket` argument) so the resolved namespaced name is returned."
       ]
     },
     {
@@ -214,34 +85,16 @@
       "prompt": "Here's a security group module — any concerns?",
       "expected_output": "A review that catches both the architectural issues (vpc_id variable, inline rules) and the genuine security problem (SSH open to the world). The style of the module is otherwise clean, so the review should focus on structural concerns rather than fabricating cosmetic ones.",
       "files": [
-        "inputs/architectural-issues/main.tf",
-        "inputs/architectural-issues/variables.tf"
+        "evals/files/architectural-issues/main.tf",
+        "evals/files/architectural-issues/variables.tf"
       ],
-      "assertions": [
-        {
-          "name": "flags SSH from 0.0.0.0/0 as Critical",
-          "description": "Identifies `cidr_blocks = [\"0.0.0.0/0\"]` on the SSH ingress rule as a Critical security issue, not just a style suggestion."
-        },
-        {
-          "name": "flags var.vpc_id",
-          "description": "Identifies `variable \"vpc_id\"` as an architectural anti-pattern and recommends deriving from `data.aws_subnet.first.vpc_id`. Cites `dave_no_vpc_id_variable`."
-        },
-        {
-          "name": "flags inline ingress/egress blocks",
-          "description": "Identifies the inline `ingress {}` and `egress {}` blocks and recommends `aws_vpc_security_group_ingress_rule` / `aws_vpc_security_group_egress_rule`. Cites `dave_security_group_no_inline_rules`."
-        },
-        {
-          "name": "no false flags on variable hygiene",
-          "description": "Does NOT flag the variables — they are alphabetical, typed, and described."
-        },
-        {
-          "name": "no false flags on label",
-          "description": "Does NOT flag `aws_security_group.app` for any naming issue — `app` is a fine label."
-        },
-        {
-          "name": "wide-open egress flagged or contextualised",
-          "description": "Either flags the wide-open egress (`0.0.0.0/0` on all protocols) as a concern, or explicitly notes that wide egress is acceptable when paired with restrictive ingress. Should not silently ignore."
-        }
+      "expectations": [
+        "Flags SSH from 0.0.0.0/0 as Critical — identifies `cidr_blocks = [\"0.0.0.0/0\"]` on the SSH ingress rule as a Critical security issue, not just a style suggestion.",
+        "Flags var.vpc_id — identifies `variable \"vpc_id\"` as an architectural anti-pattern and recommends deriving from `data.aws_subnet.first.vpc_id`. Cites `dave_no_vpc_id_variable`.",
+        "Flags inline ingress/egress blocks — identifies the inline `ingress {}` and `egress {}` blocks and recommends `aws_vpc_security_group_ingress_rule` / `aws_vpc_security_group_egress_rule`. Cites `dave_security_group_no_inline_rules`.",
+        "No false flags on variable hygiene — does NOT flag the variables; they are alphabetical, typed, and described.",
+        "No false flags on label — does NOT flag `aws_security_group.app` for any naming issue; `app` is a fine label.",
+        "Wide-open egress flagged or contextualised — either flags the wide-open egress (`0.0.0.0/0` on all protocols) as a concern, or explicitly notes that wide egress is acceptable when paired with restrictive ingress. Should not silently ignore."
       ]
     }
   ]

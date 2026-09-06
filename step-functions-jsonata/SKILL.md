@@ -13,7 +13,7 @@ This skill produces clean, modern AWS Step Functions state machines in **JSONata
 
 ## The phased workflow
 
-Follow these phases in order. Each phase has a gate; do not proceed until the gate passes.
+The phases below build on each other — the graph outline exists to be revised before ASL makes revision expensive. The one hard gate is Phase 4: don't hand over ASL the validator rejects at L1 or L2.
 
 ### Phase 1 — Capture intent
 
@@ -68,7 +68,7 @@ Pick the closest template in `templates/` and adapt it. Every template already u
 
 For every Task `Resource` ARN, consult `references/service-integrations.md`. Do not invent ARN shapes. If the service you need is not in the allowlist, use the generic `arn:aws:states:::aws-sdk:<svc>:<action>` pattern documented at the bottom of that file — and copy the AWS documentation URL into the state's `Comment` field so the ARN is grounded in a real source.
 
-For every JSONata expression, follow `references/jsonata-conversion.md`. Key rules you must internalise:
+For every JSONata expression, follow `references/jsonata-conversion.md`. Key rules — these apply to every expression you write:
 
 - Every dynamic value wraps in `{% ... %}`. No wrapper = literal string.
 - Read state input as `$states.input`, task result as `$states.result`, errors as `$states.errorOutput`, execution context as `$states.context`. **Never** use bare `$`, `$$`, or `$.foo` inside a Step Functions expression — those are JSONPath or plain JSONata idioms that AWS rejects.
@@ -114,7 +114,7 @@ Each emitter takes the validated ASL path and a few config flags and writes the 
 
 ## Error handling philosophy
 
-Read this section carefully and apply it strictly. It diverges from many tutorials and from AWS Workflow Studio defaults.
+This section diverges from many tutorials and from AWS Workflow Studio defaults — where they conflict, this section wins.
 
 ### Never introduce a common error-handling state
 

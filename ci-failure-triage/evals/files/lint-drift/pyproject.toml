@@ -1,0 +1,20 @@
+[project]
+name = "orders-api"
+version = "0.4.1"
+description = "Order ingestion service"
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic==2.11.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==8.3.5",
+    "ruff==0.11.8",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

@@ -1,0 +1,13 @@
+Go Lint / golangci  Run golangci/golangci-lint-action@master
+  with:
+    verify: true
+    only-new-issues: false
+    skip-cache: false
+Run golangci-lint version 2.1.0 with args ...
+Error: can't load config: the configuration contains options that are no longer supported:
+  - run.timeout was removed in v2, use the command line flag instead
+  - issues.exclude-use-default was removed in v2, see the v2 migration guide
+Error: golangci-lint exit with code 3
+Error: Process completed with exit code 3.
+
+Note: this workflow passed 4 days ago on the same branch with no changes to Go files or lint config.

@@ -1,0 +1,16 @@
+Prepare Text Models / prepare (pull_request) — runs-on: ubuntu-24.04-arm
+Download model artifacts
+  Run python scripts/fetch_models.py
+  Fetching sentence-transformers/all-MiniLM-L6-v2 from huggingface.co ...
+  requests.exceptions.HTTPError: 429 Client Error: Too Many Requests for url:
+  https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/model.safetensors
+  Retry 1/3 after 10s ... 429 Too Many Requests
+  Retry 2/3 after 20s ... 429 Too Many Requests
+  Retry 3/3 after 40s ... 429 Too Many Requests
+  RuntimeError: giving up after 3 retries
+  Error: Process completed with exit code 1.
+
+Notes from the maintainer:
+- This works fine on my laptop every time.
+- It fails maybe 60% of the time on GitHub Actions, on PRs from contributors too.
+- The workflow trigger is pull_request. The repo is public and gets fork PRs.

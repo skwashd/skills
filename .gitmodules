@@ -4,3 +4,12 @@
 [submodule ".external/mattpocock-skills"]
 	path = .external/mattpocock-skills
 	url = git@github.com:mattpocock/skills.git
+[submodule ".external/anthropics-skills"]
+	path = .external/anthropics-skills
+	url = git@github.com:anthropics/skills.git
+[submodule ".external/microsoft-playwright-cli"]
+	path = .external/microsoft-playwright-cli
+	url = git@github.com:microsoft/playwright-cli.git
+[submodule ".external/aws-agent-toolkit-for-aws"]
+	path = .external/aws-agent-toolkit-for-aws
+	url = git@github.com:aws/agent-toolkit-for-aws.git

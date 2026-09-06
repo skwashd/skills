@@ -175,5 +175,8 @@ pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python
 
+# Ignore AWS skills users choose to symlink themselves
+aws*
+
 # Ignore personal skills that shouldn't be committed
 .private

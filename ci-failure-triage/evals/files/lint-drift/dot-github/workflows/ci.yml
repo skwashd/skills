@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality Checks
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        id: setup-uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sync dependencies
+        id: sync
+        run: uv sync --frozen
+
+      - name: Lint
+        id: lint
+        run: uv run ruff check --output-format=github .
+
+      - name: Tests
+        id: tests
+        run: uv run pytest tests

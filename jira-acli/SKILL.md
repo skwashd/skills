@@ -10,7 +10,7 @@ compatibility: >
   richer `createmeta` route additionally needs a Jira API token.
 metadata:
   author: skwashd
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Jira via acli
@@ -380,6 +380,50 @@ ADF, render it to readable markdown rather than showing the node tree.
 If acceptance criteria are absent or empty, say so plainly. Do not invent them, and do
 not proceed to implement against criteria you inferred without flagging that you
 inferred them.
+
+## Commenting on a work item
+
+```bash
+acli jira workitem comment create --key <KEY> --body "Comment text"
+```
+
+`--body` takes plain text or a full ADF document — the same rule as Description (see
+"Atlassian Document Format" above). For anything beyond a short plain-text note, write
+the ADF to a file and pass `--body-file` instead, for the same shell-quoting reason
+`--description-file` is preferred over inlining.
+
+To confirm what a comment rendered as, or to find the most recent one before editing it:
+
+```bash
+acli jira workitem comment list --key <KEY>
+```
+
+`-e/--edit-last` on `comment create` edits the last comment from the same author instead
+of posting a new one — useful for correcting a comment rather than leaving both.
+
+## Transitioning a work item
+
+```bash
+acli jira workitem transition --key <KEY> --status "Done"
+```
+
+`--status` takes the workflow status name, not an internal transition ID — the exact
+names available depend on the project's workflow, so if the given name is rejected, read
+the item back (`workitem view --json`) to see its current status and infer the workflow
+from there rather than guessing at names.
+
+`transition` accepts `--key` with a comma-separated list, and `--jql`/`--filter` to
+target many items at once — the same wide-blast-radius shape as `edit`. Confirm before
+transitioning anything beyond the single item just being closed, and never pass `-y/--yes`
+on a bulk transition the user has not explicitly approved.
+
+**Read the status back afterwards.** A transition can be rejected by the workflow (for
+example, a required field is empty, or the status doesn't exist on this item's board) and
+still exit in a way that's easy to misread as success:
+
+```bash
+acli jira workitem view <KEY> --json --fields status
+```
 
 ## Things to ask before doing
 

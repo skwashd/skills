@@ -1,0 +1,17 @@
+[project]
+name = "tagsort"
+version = "0.1.0"
+description = "Sort and normalise AWS resource tags across Terraform files"
+requires-python = ">=3.13"
+dependencies = [
+    "python-hcl2==7.3.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==8.3.5",
+    "ruff==0.11.8",
+]
+
+[project.scripts]
+tagsort = "tagsort.cli:main"
